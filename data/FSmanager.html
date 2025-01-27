@@ -470,7 +470,7 @@
                 // Update space information
                 const spaceInfo = document.getElementById('spaceInfo');
                 const availableSpace = data.totalSpace - data.usedSpace;
-                spaceInfo.textContent = `FileSYS uses ${formatSize(data.usedSpace)} of ${formatSize(data.totalSpace)} (${formatSize(availableSpace)} available)`;
+                spaceInfo.textContent = `FileSystem uses ${formatSize(data.usedSpace)} of ${formatSize(data.totalSpace)} (${formatSize(availableSpace)} available)`;
                 
                 // Update Add Folder menu item state
                 updateAddFolderMenuItem();
