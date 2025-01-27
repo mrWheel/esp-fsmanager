@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File System Manager</title>
+    <style>
+
+body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+
+        header, footer {
+            background-color: #e0e0e0;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            font-size: 18px;
+        }
+
+        footer {
+            font-size: 14px;
+            color: #777;
+        }
+
+        footer .left {
+            width: 80%;
+        }
+
+        footer .right {
+            text-align: right;
+        }
+
+        main {
+            padding: 20px;
+        }
+
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            background-color: white;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+            list-style: none;
+            padding: 5px 0;
+            margin: 0;
+        }
+
+        .dropdown-menu li {
+            padding: 5px 15px;
+            cursor: pointer;
+        }
+
+        .dropdown-menu li:hover {
+            background-color: #f0f0f0;
+        }
+
+        .dropdown:hover .dropdown-menu {
+            display: block;
+        }
+
+        .file-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            background-color: white;
+            margin: 5px 0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .file-item button {
+            margin-left: 10px;
+        }
+
+        .button {
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            background-color: #007aff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .button:hover {
+            background-color: #0056d4;
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <div class="dropdown">
+            <span>Menu</span>
+            <ul class="dropdown-menu">
+                <li onclick="addFolder()">Add Folder</li>
+                <li onclick="updateFirmware()">Update Firmware</li>
+                <li onclick="updateFileSystem()">Update FileSystem</li>
+                <li onclick="exitApplication()">Exit</li>
+            </ul>
+        </div>
+        <div>File System</div>
+        <div id="dateTime"></div>
+    </header>
+
+    <main>
+        <button class="button" onclick="downloadFile()">Download</button>
+        <ul id="fileList" class="file-list"></ul>
+    </main>
+
+    <footer>
+        <div class="left">Messages go here</div>
+        <div class="right">by Willem Aandewiel</div>
+    </footer>
+
+  <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            updateDateTime();
+            loadFileList();
+        });
+
+        function updateDateTime()
+        {
+            const dateTimeElement = document.getElementById('dateTime');
+            setInterval(() => {
+                const now = new Date();
+                dateTimeElement.textContent = now.toLocaleString();
+            }, 1000);
+        }
+
+        function addFolder()
+        {
+            alert('Add Folder clicked!');
+            // Implement folder addition logic here
+        }
+
+        function updateFirmware()
+        {
+            alert('Update Firmware clicked!');
+            // Implement firmware update logic here
+        }
+
+        function updateFileSystem()
+        {
+            alert('Update FileSystem clicked!');
+            // Implement file system update logic here
+        }
+
+        function exitApplication()
+        {
+            alert('Exit clicked!');
+            // Implement application exit logic here
+        }
+
+        function downloadFile()
+        {
+            alert('Download clicked!');
+            // Implement file download logic here
+        }
+
+        function loadFileList()
+        {
+            const fileList = [
+                { name: 'Folder1', isFolder: true },
+                { name: 'file1.txt', size: 1024 },
+                { name: 'file2.jpg', size: 1048576 },
+            ];
+
+            const fileListElement = document.getElementById('fileList');
+            fileListElement.innerHTML = '';
+
+            fileList.forEach(file => {
+                const fileItem = document.createElement('li');
+                fileItem.classList.add('file-item');
+
+                if (file.isFolder)
+                {
+                    fileItem.innerHTML = `
+                        <span>📁 ${file.name}</span>
+                        <button onclick="openFolder('${file.name}')">Open</button>
+                        <button onclick="deleteFolder('${file.name}')">Delete</button>
+                    `;
+                }
+                else
+                {
+                    const size = formatSize(file.size);
+                    fileItem.innerHTML = `
+                        <span>📄 ${file.name} (${size})</span>
+                        <button onclick="uploadFile('${file.name}')">Upload</button>
+                        <button onclick="deleteFile('${file.name}')">Delete</button>
+                    `;
+                }
+
+                fileListElement.appendChild(fileItem);
+            });
+        }
+
+        function openFolder(folderName)
+        {
+            alert(`Open folder: ${folderName}`);
+            // Implement folder opening logic here
+        }
+
+        function deleteFolder(folderName)
+        {
+            alert(`Delete folder: ${folderName}`);
+            // Implement folder deletion logic here
+        }
+
+        function uploadFile(fileName)
+        {
+            alert(`Upload file: ${fileName}`);
+            // Implement file upload logic here
+        }
+
+        function deleteFile(fileName)
+        {
+            alert(`Delete file: ${fileName}`);
+            // Implement file deletion logic here
+        }
+
+        function formatSize(size)
+        {
+            if (size >= 1048576)
+            {
+                return (size / 1048576).toFixed(2) + ' MB';
+            }
+            else if (size >= 1024)
+            {
+                return (size / 1024).toFixed(2) + ' KB';
+            }
+            else
+            {
+                return size + ' bytes';
+            }
+        }
+    </script>
+</body>
+</html>

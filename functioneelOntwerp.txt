@@ -1,0 +1,22 @@
+Functionele eisen
+
+- CamelCase naamgeving
+- Allman style coding - ook css style en javascript
+- MacOS look
+- Single Page Application (SPA), single file (html, css en javascript in één bestand)
+- Alle ‘html’ calls vanuit class en SPA moeten beginnen met “/fsm/“
+- Alle te genereren bestanden moeten de naam “FSmanager.<ext>” hebben.
+- De C(++) code moet een class zijn met namen in de vorm van een “FSmanager.h” en “FSmanager.cpp”
+- Alle voortgang moet worden bijgehouden in “voortgang.md”
+- Systeem bestanden (“FSmanager.<ext>” en “index.<ext>” kunnen niet gedelete worden
+
+Hoofdscherm 
+- kopregel met links dropdown menu, midden de tekst “File System” en rechts de datum/tijd
+- Dropdown menu met standaard “Add Folder”, Update Firmware”, “Update FileSystem”, “ReBoot”  en “Exit” (start “<hostname>/“ of “<hostname>/index.html”)
+- Met behulp van een methode de mogelijkheid om hier items aan toe te voegen met een callback functie
+- Voetregel met links ruimte voor boodschappen en rechts de tekst “by Willem Aandewiel”. De tekst 80% of zo
+- Body een knop “Download” om een bestand vanaf de PC naar de actieve folder te downloaden en daaronder een gesorteerde lijst van de bestanden in de actieve folder die op het filesystem (littleFS) staan met als eerste de eventuele folders. Achter iedere bestandnaam de grootte (in één van de eenheden bytes, kilobytes of Megabytes -afhankelijk van hoe groot een bestand is-. Daarachter twee knoppen “Upload” en “Delete”
+- Onder de bestandenlijst moet de grootte van het littleFS staan en het totaal gebruikte bytes 9in bytes, kilobytes of megabytes)
+- Er kan maar één niveau van folders bestaan. Een folder kan alleen gedelete worden als er geen bestanden in staan. Het bovenste item/icoon van een folder is een knop om terug te gaan naar de root folder.
+- Up- en downloads moet een voortgang-balk (pop-up) tonen, evenals de Updates
+
