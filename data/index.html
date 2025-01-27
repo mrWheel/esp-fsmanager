@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FSmanager tester</title>
+    <style>
+        body 
+        {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #e6f3ff, #cce7ff);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header 
+        {
+            background-color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            font-size: 16px;
+        }
+
+        main 
+        {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        footer 
+        {
+            background-color: #cce7ff;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            font-size: 14px;
+            color: #777;
+        }
+
+        footer .right 
+        {
+            text-align: right;
+            opacity: 0.8;
+        }
+
+        button 
+        {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007aff;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover 
+        {
+            background-color: #0056d4;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>FSmanager tester</div>
+    </header>
+
+    <main>
+        <button onclick="window.location.href='/fsm/'">Enter File System Manager</button>
+    </main>
+
+    <footer>
+        <div class="right">by Willem Aandewiel</div>
+    </footer>
+</body>
+</html>

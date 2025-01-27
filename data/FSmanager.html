@@ -48,7 +48,12 @@
 
         main {
             padding: 20px;
-            margin-bottom: 60px;
+            margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: calc(100vh - 120px);
+            overflow: hidden;
         }
 
         .dropdown {
@@ -86,7 +91,21 @@
             list-style: none;
             padding: 0;
             width: 870px;
-            margin: 0 auto;
+            margin: 0;
+            overflow-y: scroll;
+            max-height: calc(100vh - 200px);
+            border: 1px solid #ccc;
+            border-bottom: none;
+        }
+
+        .file-list::-webkit-scrollbar {
+            width: 8px;
+            background-color: #f0f0f0;
+        }
+
+        .file-list::-webkit-scrollbar-thumb {
+            background-color: #007aff;
+            border-radius: 4px;
         }
 
         .file-list-header {
@@ -95,6 +114,7 @@
             margin-bottom: 2px;
             font-weight: bold;
             border: 1px solid #ccc;
+            font-family: "Courier New", Courier, monospace;
         }
 
         .file-item {
@@ -104,6 +124,8 @@
             padding: 8px 15px;
             border: 1px solid #ccc;
             border-top: none;
+            font-family: "Courier New", Courier, monospace;
+            font-weight: bold;
         }
 
         .file-item:first-child {
@@ -195,14 +217,15 @@
         }
 
         .space-info {
-            margin-top: 20px;
             padding: 15px;
             background-color: white;
-            border-radius: 4px;
+            border-radius: 0 0 4px 4px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            width: 870px;
-            margin-left: auto;
-            margin-right: auto;
+            width: 840px;
+            border: 1px solid #ccc;
+            margin: 0;
+            /*font-family: "Courier New", Courier, monospace;*/
+            /*font-weight: bold;*/
         }
 
         .message {
@@ -238,7 +261,7 @@
                 <li onclick="exitApplication()">Exit</li>
             </ul>
         </div>
-        <div>File System</div>
+        <div>File System Manager</div>
         <div id="dateTime"></div>
     </header>
 
@@ -577,11 +600,15 @@
         async function updateFirmware() {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
-            fileInput.accept = '.bin';
-            
+            //fileInput.accept = '.bin';
             fileInput.onchange = async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
+                // Validate file type manually (if necessary)
+                if (!file.name.endsWith('.bin')) {
+                    showMessage('Invalid file type. Please select a .bin file.', 'error');
+                    return;
+                }
 
                 const formData = new FormData();
                 formData.append('firmware', file);
@@ -620,11 +647,16 @@
         async function updateFileSystem() {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
-            fileInput.accept = '.bin';
+            //fileInput.accept = '.bin';
             
             fileInput.onchange = async function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
+                // Validate file type manually (if necessary)
+                if (!file.name.endsWith('.bin')) {
+                    showMessage('Invalid file type. Please select a .bin file.', 'error');
+                    return;
+                }
 
                 const formData = new FormData();
                 formData.append('filesystem', file);

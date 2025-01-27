@@ -18,7 +18,7 @@ void setup()
     wifiManager.autoConnect("FSManager-AP");
 
     LittleFS.begin();
-    
+
     fsManager.begin();
 
     // Voeg extra menu-opties toe
@@ -28,6 +28,12 @@ void setup()
 
     server.begin();
     Serial.println("Webserver started!");
+
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+    {
+        request->send(LittleFS, "/index.html", "text/html");    
+    });
+
 }
 
 void loop()

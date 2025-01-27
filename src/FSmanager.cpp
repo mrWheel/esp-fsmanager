@@ -219,13 +219,15 @@ void FSmanager::handleUpload(AsyncWebServerRequest *request, const String &filen
         
         debugPort->printf("Upload path: %s\n", path.c_str());
         
+        /******
         if (isSystemFile(path))
         {
             debugPort->println("Cannot upload system file!");
             request->send(403, "text/plain", "Cannot overwrite system files");
             return;
         }
-        
+        ******/
+       
         uploadFile = LittleFS.open(path, "w");
         if (!uploadFile)
         {
@@ -351,7 +353,20 @@ void FSmanager::handleUpdateFirmware(AsyncWebServerRequest *request)
 
     const AsyncWebParameter* p = request->getParam("firmware", true, true);
     debugPort->printf("Firmware size: %d bytes\n", p->size());
-    
+
+    // Platform-specific space check
+    #ifdef ESP8266
+        if (p->size() > ESP.getFreeSketchSpace(false)) 
+    #else
+        if (p->size() > ESP.getFreeHeap())  // ESP32
+    #endif
+    {
+        debugPort->println("Not enough space for firmware update");
+        request->send(400, "text/plain", "Not enough space for update");
+        return;
+    }
+
+    // Platform-specific update begin
     if (!Update.begin(p->size()))
     {
         debugPort->println("OTA could not begin");
@@ -360,6 +375,7 @@ void FSmanager::handleUpdateFirmware(AsyncWebServerRequest *request)
     }
 
     debugPort->println("Writing firmware data...");
+  //if (Update.write((uint8_t*)p->value().c_str(), p->size()) != p->size())
     if (Update.write((uint8_t*)p->value().c_str(), p->size()) != p->size())
     {
         debugPort->println("OTA write error");
@@ -378,6 +394,7 @@ void FSmanager::handleUpdateFirmware(AsyncWebServerRequest *request)
     request->send(200, "text/plain", "Update successful. Rebooting...");
     delay(1000);
     ESP.restart();
+
 }
 
 void FSmanager::handleUpdateFileSystem(AsyncWebServerRequest *request)
@@ -394,7 +411,28 @@ void FSmanager::handleUpdateFileSystem(AsyncWebServerRequest *request)
     const AsyncWebParameter* p = request->getParam("filesystem", true, true);
     debugPort->printf("FileSystem update size: %d bytes\n", p->size());
     
-    if (!Update.begin(p->size(), U_SPIFFS))
+    // Platform-specific size check
+    size_t fsSize = 0;
+    #ifdef ESP8266
+        FSInfo fs_info;
+        LittleFS.info(fs_info);
+        fsSize = fs_info.totalBytes;
+    #else
+        fsSize = LittleFS.totalBytes();  // ESP32
+    #endif
+    
+    if (p->size() > fsSize) {
+        debugPort->println("FileSystem update too large");
+        request->send(400, "text/plain", "Update file too large");
+        return;
+    }
+
+    // Platform-specific update begin
+    #ifdef ESP32
+        if (!Update.begin(p->size(), U_SPIFFS))
+    #else
+        if (!Update.begin(p->size(), SPIFFS))
+    #endif
     {
         debugPort->println("FileSystem update could not begin");
         request->send(400, "text/plain", "FileSystem update could not begin");
@@ -420,6 +458,7 @@ void FSmanager::handleUpdateFileSystem(AsyncWebServerRequest *request)
     request->send(200, "text/plain", "FileSystem update successful. Rebooting...");
     delay(1000);
     ESP.restart();
+
 }
 
 void FSmanager::handleReboot(AsyncWebServerRequest *request)
