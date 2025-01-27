@@ -7,7 +7,7 @@ A file system management library for ESP8266/ESP32 microcontrollers using Little
 
 ## Features
 
-- Single Page Application (SPA) interface with MacOS-like design
+- Single Page Application (SPA) interface
 - File operations:
   - Upload files
   - Download files
@@ -97,12 +97,6 @@ The web interface is accessible at `http://[device-ip]/fsm/` and provides:
 - Upload file functionality
 - Folder management
 - System operations (firmware update, filesystem update, reboot)
-
-## Limitations
-
-- Only one level of folders is supported
-- System files (FSmanager.html, index.html) cannot be deleted
-- Folders can only be deleted when empty
 
 ## License
 
