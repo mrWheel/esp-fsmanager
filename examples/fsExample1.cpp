@@ -12,10 +12,13 @@ FSmanager fsManager(server);
 void setup()
 {
     Serial.begin(115200);
-    
+    delay(4000);
+
     // Initialize WiFiManager
     wifiManager.autoConnect("FSManager-AP");
 
+    LittleFS.begin();
+    
     fsManager.begin();
 
     // Voeg extra menu-opties toe

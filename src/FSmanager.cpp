@@ -1,8 +1,11 @@
 #include "FSmanager.h"
+#include <Update.h>
 
 FSmanager::FSmanager(AsyncWebServer &srv)
 {
     server = &srv;
+    currentFolder = "/";
+    debugPort = &Serial;
 }
 
 void FSmanager::loadHtmlPage()
@@ -10,38 +13,132 @@ void FSmanager::loadHtmlPage()
     File file = LittleFS.open("/FSmanager.html", "r");
     if (!file)
     {
-        Serial.println("Failed to load FSmanager.html!");
+        debugPort->println("Failed to load FSmanager.html!");
         htmlPage = "<h1>Error: SPA not found!</h1>";
     }
     else
     {
         htmlPage = file.readString();
         file.close();
-        Serial.println("FSmanager.html loaded successfully.");
+        debugPort->println("FSmanager.html loaded successfully.");
     }
+}
+
+String FSmanager::formatSize(size_t bytes)
+{
+    if (bytes < 1024)
+    {
+        return String(bytes) + " B";
+    }
+    else if (bytes < (1024 * 1024))
+    {
+        return String(bytes / 1024.0, 1) + " KB";
+    }
+    else
+    {
+        return String(bytes / 1024.0 / 1024.0, 1) + " MB";
+    }
+}
+
+bool FSmanager::isSystemFile(const String &filename)
+{
+    String fname = filename;
+    if (fname.startsWith("/")) fname = fname.substring(1);
+    return (fname == "index.html");
+}
+
+size_t FSmanager::getTotalSpace()
+{
+    return LittleFS.totalBytes();
+}
+
+size_t FSmanager::getUsedSpace()
+{
+    return LittleFS.usedBytes();
 }
 
 void FSmanager::handleFileList(AsyncWebServerRequest *request)
 {
-    String json = "[";
-    File root = LittleFS.open("/");
+    String json = "{\"files\":[";
+    String folder = "/";
+    
+    if (request->hasParam("folder"))
+    {
+        folder = request->getParam("folder")->value();
+        if (!folder.startsWith("/")) folder = "/" + folder;
+        if (!folder.endsWith("/")) folder += "/";
+        debugPort->printf("Listing folder: %s\n", folder.c_str());
+    }
+    
+    File root = LittleFS.open(folder);
+    if (!root || !root.isDirectory())
+    {
+        request->send(400, "application/json", "{\"error\":\"Invalid folder\"}");
+        return;
+    }
+
+    debugPort->println("Files in folder:");
+    if (!root || !root.isDirectory())
+    {
+        request->send(400, "application/json", "{\"error\":\"Invalid folder\"}");
+        return;
+    }
+
+    bool first = true;
     File file = root.openNextFile();
+    
+    // First list directories
     while (file)
     {
-        if (json != "[")
+        if (file.isDirectory())
         {
-            json += ",";
+            if (!first) json += ",";
+            first = false;
+            
+            String name = file.name();
+            if (name.startsWith("/")) name = name.substring(1);
+            
+            debugPort->printf("  DIR: %s\n", name.c_str());
+            
+            json += "{\"name\":\"";
+            json += name;
+            json += "\",\"isDir\":true,\"size\":0}";
         }
-
-        json += "{\"name\":\"";
-        json += file.name();
-        json += "\",\"size\":";
-        json += String(file.size());
-        json += "}";
-
         file = root.openNextFile();
     }
-    json += "]";
+    
+    // Then list files
+    root.close();
+    root = LittleFS.open(folder);
+    file = root.openNextFile();
+    while (file)
+    {
+        if (!file.isDirectory())
+        {
+            if (!first) json += ",";
+            first = false;
+            
+            String name = file.name();
+            if (name.startsWith("/")) name = name.substring(1);
+            
+            debugPort->printf("  FILE: %s (%d bytes)\n", name.c_str(), file.size());
+            
+            json += "{\"name\":\"";
+            json += name;
+            json += "\",\"isDir\":false,\"size\":";
+            json += String(file.size());
+            json += "}";
+        }
+        file = root.openNextFile();
+    }
+    
+    json += "],";
+    json += "\"totalSpace\":";
+    json += String(getTotalSpace());
+    json += ",\"usedSpace\":";
+    json += String(getUsedSpace());
+    json += "}";
+    
     request->send(200, "application/json", json);
 }
 
@@ -54,6 +151,14 @@ void FSmanager::handleDelete(AsyncWebServerRequest *request)
     }
 
     String fileName = request->getParam("file", true)->value();
+    if (!fileName.startsWith("/")) fileName = "/" + fileName;
+    
+    if (isSystemFile(fileName))
+    {
+        request->send(403, "text/plain", "Cannot delete system files");
+        return;
+    }
+
     if (LittleFS.exists(fileName))
     {
         LittleFS.remove(fileName);
@@ -71,50 +176,275 @@ void FSmanager::handleUpload(AsyncWebServerRequest *request, const String &filen
 
     if (!index)
     {
-        String path = "/" + filename;
+        String path;
+        String folder = "/";
+        
+        // First check query parameters
+        const AsyncWebParameter* folderParam = request->getParam("folder");
+        if (!folderParam) {
+            // Then check form data
+            folderParam = request->getParam("folder", true);
+        }
+        if (folderParam)
+        {
+            folder = folderParam->value();
+            debugPort->printf("Found folder parameter: %s\n", folder.c_str());
+            
+            // Ensure folder path is properly formatted
+            if (!folder.startsWith("/")) folder = "/" + folder;
+            if (!folder.endsWith("/")) folder += "/";
+            
+            // Create folder if it doesn't exist
+            if (!LittleFS.exists(folder))
+            {
+                if (!LittleFS.mkdir(folder))
+                {
+                    debugPort->printf("Failed to create folder: %s\n", folder.c_str());
+                    request->send(500, "text/plain", "Failed to create folder");
+                    return;
+                }
+            }
+        }
+        
+        String fname = filename;
+        if (fname.startsWith("/")) fname = fname.substring(1);
+        path = folder + fname;
+        
+        debugPort->printf("Upload to folder: %s\n", folder.c_str());
+        debugPort->printf("Final upload path: %s\n", path.c_str());
+        
+        debugPort->printf("Upload path: %s\n", path.c_str());
+        
+        if (isSystemFile(path))
+        {
+            debugPort->println("Cannot upload system file!");
+            request->send(403, "text/plain", "Cannot overwrite system files");
+            return;
+        }
+        
         uploadFile = LittleFS.open(path, "w");
         if (!uploadFile)
         {
+            debugPort->printf("Failed to open file for writing: %s\n", path.c_str());
             request->send(500, "text/plain", "Failed to open file for writing");
             return;
         }
+        debugPort->println("File opened for writing");
     }
 
     if (uploadFile)
     {
         uploadFile.write(data, len);
+        debugPort->printf("Writing %d bytes\n", len);
         if (final)
         {
             uploadFile.close();
+            debugPort->println("Upload complete");
             request->send(200, "text/plain", "File uploaded: " + filename);
         }
     }
     else
     {
+        debugPort->println("File write error!");
         request->send(500, "text/plain", "File write error");
     }
 }
 
-void FSmanager::begin()
+void FSmanager::handleDownload(AsyncWebServerRequest *request)
 {
+    if (!request->hasParam("file"))
+    {
+        debugPort->println("Download: File parameter missing");
+        request->send(400, "text/plain", "File parameter missing");
+        return;
+    }
+
+    String fileName = request->getParam("file")->value();
+    if (!fileName.startsWith("/")) fileName = "/" + fileName;
+    
+    debugPort->printf("Download request for: %s\n", fileName.c_str());
+    
+    if (LittleFS.exists(fileName))
+    {
+        debugPort->println("File found, starting download");
+        request->send(LittleFS, fileName, "application/octet-stream");
+    }
+    else
+    {
+        debugPort->printf("File not found: %s\n", fileName.c_str());
+        request->send(404, "text/plain", "File not found");
+    }
+}
+
+void FSmanager::handleCreateFolder(AsyncWebServerRequest *request)
+{
+    if (!request->hasParam("name", true))
+    {
+        request->send(400, "text/plain", "Folder name parameter missing");
+        return;
+    }
+
+    String folderName = request->getParam("name", true)->value();
+    if (!folderName.startsWith("/")) folderName = "/" + folderName;
+    
+    if (LittleFS.mkdir(folderName))
+    {
+        request->send(200, "text/plain", "Folder created: " + folderName);
+    }
+    else
+    {
+        request->send(500, "text/plain", "Failed to create folder");
+    }
+}
+
+void FSmanager::handleDeleteFolder(AsyncWebServerRequest *request)
+{
+    if (!request->hasParam("folder", true))
+    {
+        request->send(400, "text/plain", "Folder parameter missing");
+        return;
+    }
+
+    String folderName = request->getParam("folder", true)->value();
+    if (!folderName.startsWith("/")) folderName = "/" + folderName;
+    
+    File dir = LittleFS.open(folderName);
+    if (!dir || !dir.isDirectory())
+    {
+        request->send(400, "text/plain", "Invalid folder");
+        return;
+    }
+
+    File file = dir.openNextFile();
+    if (file)
+    {
+        request->send(400, "text/plain", "Folder not empty");
+        return;
+    }
+
+    if (LittleFS.rmdir(folderName))
+    {
+        request->send(200, "text/plain", "Folder deleted: " + folderName);
+    }
+    else
+    {
+        request->send(500, "text/plain", "Failed to delete folder");
+    }
+}
+
+void FSmanager::handleUpdateFirmware(AsyncWebServerRequest *request)
+{
+    debugPort->println("Firmware update requested");
+    
+    if (!request->hasParam("firmware", true, true))
+    {
+        debugPort->println("Firmware file missing in request");
+        request->send(400, "text/plain", "Firmware file missing");
+        return;
+    }
+
+    const AsyncWebParameter* p = request->getParam("firmware", true, true);
+    debugPort->printf("Firmware size: %d bytes\n", p->size());
+    
+    if (!Update.begin(p->size()))
+    {
+        debugPort->println("OTA could not begin");
+        request->send(400, "text/plain", "OTA could not begin");
+        return;
+    }
+
+    debugPort->println("Writing firmware data...");
+    if (Update.write((uint8_t*)p->value().c_str(), p->size()) != p->size())
+    {
+        debugPort->println("OTA write error");
+        request->send(400, "text/plain", "OTA write error");
+        return;
+    }
+
+    if (!Update.end(true))
+    {
+        debugPort->println("OTA end failed");
+        request->send(400, "text/plain", "OTA end failed");
+        return;
+    }
+
+    debugPort->println("Firmware update successful, rebooting...");
+    request->send(200, "text/plain", "Update successful. Rebooting...");
+    delay(1000);
+    ESP.restart();
+}
+
+void FSmanager::handleUpdateFileSystem(AsyncWebServerRequest *request)
+{
+    debugPort->println("FileSystem update requested");
+    
+    if (!request->hasParam("filesystem", true, true))
+    {
+        debugPort->println("FileSystem file missing in request");
+        request->send(400, "text/plain", "FileSystem file missing");
+        return;
+    }
+
+    const AsyncWebParameter* p = request->getParam("filesystem", true, true);
+    debugPort->printf("FileSystem update size: %d bytes\n", p->size());
+    
+    if (!Update.begin(p->size(), U_SPIFFS))
+    {
+        debugPort->println("FileSystem update could not begin");
+        request->send(400, "text/plain", "FileSystem update could not begin");
+        return;
+    }
+
+    debugPort->println("Writing filesystem data...");
+    if (Update.write((uint8_t*)p->value().c_str(), p->size()) != p->size())
+    {
+        debugPort->println("FileSystem write error");
+        request->send(400, "text/plain", "FileSystem write error");
+        return;
+    }
+
+    if (!Update.end(true))
+    {
+        debugPort->println("FileSystem update end failed");
+        request->send(400, "text/plain", "FileSystem update end failed");
+        return;
+    }
+
+    debugPort->println("FileSystem update successful, rebooting...");
+    request->send(200, "text/plain", "FileSystem update successful. Rebooting...");
+    delay(1000);
+    ESP.restart();
+}
+
+void FSmanager::handleReboot(AsyncWebServerRequest *request)
+{
+    request->send(200, "text/plain", "Rebooting...");
+    delay(1000);
+    ESP.restart();
+}
+
+void FSmanager::begin(Stream* debugOutput)
+{
+    debugPort = debugOutput;
+    
     if (!LittleFS.begin())
     {
-        Serial.println("Failed to mount LittleFS!");
+        debugPort->println("Failed to mount LittleFS!");
         return;
     }
 
     loadHtmlPage();
 
-    server->on("/", HTTP_GET, [this](AsyncWebServerRequest *request)
+    server->on("/fsm/", HTTP_GET, [this](AsyncWebServerRequest *request)
                { request->send(200, "text/html", htmlPage); });
 
-    server->on("/filelist", HTTP_GET, [this](AsyncWebServerRequest *request)
+    server->on("/fsm/filelist", HTTP_GET, [this](AsyncWebServerRequest *request)
                { handleFileList(request); });
 
-    server->on("/delete", HTTP_POST, [this](AsyncWebServerRequest *request)
+    server->on("/fsm/delete", HTTP_POST, [this](AsyncWebServerRequest *request)
                { handleDelete(request); });
 
-    server->on("/upload", HTTP_POST,
+    server->on("/fsm/upload", HTTP_POST,
                [this](AsyncWebServerRequest *request) {},
                [this](AsyncWebServerRequest *request,
                       const String &filename,
@@ -124,14 +454,32 @@ void FSmanager::begin()
                       bool final)
                { handleUpload(request, filename, index, data, len, final); });
 
+    server->on("/fsm/download", HTTP_GET, [this](AsyncWebServerRequest *request)
+               { handleDownload(request); });
+
+    server->on("/fsm/createFolder", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleCreateFolder(request); });
+
+    server->on("/fsm/deleteFolder", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleDeleteFolder(request); });
+
+    server->on("/fsm/updateFirmware", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleUpdateFirmware(request); });
+
+    server->on("/fsm/updateFS", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleUpdateFileSystem(request); });
+
+    server->on("/fsm/reboot", HTTP_POST, [this](AsyncWebServerRequest *request)
+               { handleReboot(request); });
+
     server->onNotFound([](AsyncWebServerRequest *request)
                        { request->send(404, "text/plain", "Not Found"); });
 
-    Serial.println("FSmanager routes initialized.");
+    debugPort->println("FSmanager routes initialized.");
 }
 
 void FSmanager::addMenuItem(const String &name, std::function<void()> callback)
 {
-    additionalMenuItems = callback;
-    Serial.printf("Menu item '%s' added.\n", name.c_str());
+    menuItems.push_back({name, callback});
+    debugPort->printf("Menu item '%s' added.\n", name.c_str());
 }

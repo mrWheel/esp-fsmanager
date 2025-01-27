@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>File System Manager</title>
     <style>
-
-body {
+        body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             margin: 0;
             padding: 0;
@@ -29,6 +28,10 @@ body {
         footer {
             font-size: 14px;
             color: #777;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         footer .left {
@@ -37,10 +40,12 @@ body {
 
         footer .right {
             text-align: right;
+            opacity: 0.8;
         }
 
         main {
             padding: 20px;
+            margin-bottom: 60px;
         }
 
         .dropdown {
@@ -57,10 +62,11 @@ body {
             list-style: none;
             padding: 5px 0;
             margin: 0;
+            min-width: 150px;
         }
 
         .dropdown-menu li {
-            padding: 5px 15px;
+            padding: 8px 15px;
             cursor: pointer;
         }
 
@@ -81,14 +87,37 @@ body {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 10px;
+            padding: 12px 15px;
             background-color: white;
             margin: 5px 0;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+        }
+
+        .file-item:hover {
+            background-color: #f8f8f8;
         }
 
         .file-item button {
             margin-left: 10px;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007aff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .file-item button:hover {
+            background-color: #0056d4;
+        }
+
+        .file-item button.delete {
+            background-color: #ff3b30;
+        }
+
+        .file-item button.delete:hover {
+            background-color: #d63030;
         }
 
         .button {
@@ -99,12 +128,76 @@ body {
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            font-size: 16px;
         }
 
         .button:hover {
             background-color: #0056d4;
         }
 
+        .progress-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .progress-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 300px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #007aff;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .space-info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .message.error {
+            background-color: #ffe5e5;
+            color: #d63030;
+            border: 1px solid #ffcccc;
+        }
+
+        .message.success {
+            background-color: #e5ffe5;
+            color: #2d882d;
+            border: 1px solid #ccffcc;
+        }
     </style>
 </head>
 <body>
@@ -115,6 +208,7 @@ body {
                 <li onclick="addFolder()">Add Folder</li>
                 <li onclick="updateFirmware()">Update Firmware</li>
                 <li onclick="updateFileSystem()">Update FileSystem</li>
+                <li onclick="reboot()">ReBoot</li>
                 <li onclick="exitApplication()">Exit</li>
             </ul>
         </div>
@@ -123,134 +217,392 @@ body {
     </header>
 
     <main>
-        <button class="button" onclick="downloadFile()">Download</button>
+        <input type="file" id="fileInput" style="display: none" multiple>
+        <button class="button" onclick="document.getElementById('fileInput').click()">Download</button>
         <ul id="fileList" class="file-list"></ul>
+        <div id="spaceInfo" class="space-info"></div>
     </main>
 
     <footer>
-        <div class="left">Messages go here</div>
+        <div class="left" id="statusMessage">Ready</div>
         <div class="right">by Willem Aandewiel</div>
     </footer>
 
-  <script>
-        document.addEventListener('DOMContentLoaded', function () {
+    <div id="progressOverlay" class="progress-overlay" style="display: none;">
+        <div class="progress-container">
+            <div id="progressText">Uploading...</div>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFolder = '/';
+        
+        document.addEventListener('DOMContentLoaded', function() {
             updateDateTime();
             loadFileList();
+            setupFileInput();
+            console.log("Initial folder:", currentFolder);
         });
 
-        function updateDateTime()
-        {
+        function updateDateTime() {
             const dateTimeElement = document.getElementById('dateTime');
-            setInterval(() => {
+            function update() {
                 const now = new Date();
                 dateTimeElement.textContent = now.toLocaleString();
-            }, 1000);
+            }
+            update();
+            setInterval(update, 1000);
         }
 
-        function addFolder()
-        {
-            alert('Add Folder clicked!');
-            // Implement folder addition logic here
-        }
-
-        function updateFirmware()
-        {
-            alert('Update Firmware clicked!');
-            // Implement firmware update logic here
-        }
-
-        function updateFileSystem()
-        {
-            alert('Update FileSystem clicked!');
-            // Implement file system update logic here
-        }
-
-        function exitApplication()
-        {
-            alert('Exit clicked!');
-            // Implement application exit logic here
-        }
-
-        function downloadFile()
-        {
-            alert('Download clicked!');
-            // Implement file download logic here
-        }
-
-        function loadFileList()
-        {
-            const fileList = [
-                { name: 'Folder1', isFolder: true },
-                { name: 'file1.txt', size: 1024 },
-                { name: 'file2.jpg', size: 1048576 },
-            ];
-
-            const fileListElement = document.getElementById('fileList');
-            fileListElement.innerHTML = '';
-
-            fileList.forEach(file => {
-                const fileItem = document.createElement('li');
-                fileItem.classList.add('file-item');
-
-                if (file.isFolder)
-                {
-                    fileItem.innerHTML = `
-                        <span>📁 ${file.name}</span>
-                        <button onclick="openFolder('${file.name}')">Open</button>
-                        <button onclick="deleteFolder('${file.name}')">Delete</button>
-                    `;
+        function setupFileInput() {
+            const fileInput = document.getElementById('fileInput');
+            fileInput.addEventListener('change', function(e) {
+                const files = e.target.files;
+                if (files.length > 0) {
+                    uploadFiles(files);
                 }
-                else
-                {
-                    const size = formatSize(file.size);
-                    fileItem.innerHTML = `
-                        <span>📄 ${file.name} (${size})</span>
-                        <button onclick="uploadFile('${file.name}')">Upload</button>
-                        <button onclick="deleteFile('${file.name}')">Delete</button>
-                    `;
-                }
-
-                fileListElement.appendChild(fileItem);
             });
         }
 
-        function openFolder(folderName)
-        {
-            alert(`Open folder: ${folderName}`);
-            // Implement folder opening logic here
+        async function uploadFiles(files) {
+            const overlay = document.getElementById('progressOverlay');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            overlay.style.display = 'flex';
+            console.log("Uploading files to folder:", currentFolder);
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const formData = new FormData();
+                formData.append('file', file);
+                const url = `/fsm/upload?folder=${encodeURIComponent(currentFolder)}`;
+                console.log("Uploading file:", file.name, "to folder:", currentFolder);
+
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', url, true);
+                    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+                    xhr.upload.onprogress = function(e) {
+                        if (e.lengthComputable) {
+                            const percentComplete = (e.loaded / e.total) * 100;
+                            progressFill.style.width = percentComplete + '%';
+                            progressText.textContent = `Uploading ${file.name}: ${Math.round(percentComplete)}%`;
+                        }
+                    };
+
+                    await new Promise((resolve, reject) => {
+                        xhr.onload = function() {
+                            if (xhr.status === 200) {
+                                resolve();
+                            } else {
+                                reject(new Error(`Upload failed: ${xhr.statusText}`));
+                            }
+                        };
+                        xhr.onerror = () => reject(new Error('Upload failed'));
+                        xhr.send(formData);
+                    });
+
+                    showMessage(`File ${file.name} uploaded successfully`, 'success');
+                } catch (error) {
+                    showMessage(`Failed to upload ${file.name}: ${error.message}`, 'error');
+                }
+            }
+            
+            overlay.style.display = 'none';
+            loadFileList();
         }
 
-        function deleteFolder(folderName)
-        {
-            alert(`Delete folder: ${folderName}`);
-            // Implement folder deletion logic here
+        function showMessage(text, type) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = text;
         }
 
-        function uploadFile(fileName)
-        {
-            alert(`Upload file: ${fileName}`);
-            // Implement file upload logic here
+        async function loadFileList() {
+            try {
+                console.log("Loading file list for folder:", currentFolder);
+                const response = await fetch(`/fsm/filelist?folder=${currentFolder}`);
+                const data = await response.json();
+                
+                const fileListElement = document.getElementById('fileList');
+                fileListElement.innerHTML = '';
+                
+                if (currentFolder !== '/') {
+                    const backItem = document.createElement('li');
+                    backItem.classList.add('file-item');
+                    backItem.innerHTML = `
+                        <span style="cursor: pointer" onclick="navigateUp()">📁 ..</span>
+                        <div></div>
+                    `;
+                    fileListElement.appendChild(backItem);
+                }
+
+                // First add folders
+                data.files.filter(file => file.isDir).forEach(folder => {
+                    const fileItem = document.createElement('li');
+                    fileItem.classList.add('file-item');
+                    fileItem.innerHTML = `
+                        <span style="cursor: pointer" onclick="openFolder('${folder.name}')">📁 ${folder.name}</span>
+                        <div>
+                            <button class="delete" onclick="deleteFolder('${folder.name}')">Delete</button>
+                        </div>
+                    `;
+                    fileListElement.appendChild(fileItem);
+                });
+
+                // Then add files
+                data.files.filter(file => !file.isDir).forEach(file => {
+                    const fileItem = document.createElement('li');
+                    fileItem.classList.add('file-item');
+                    fileItem.innerHTML = `
+                        <span>📄 ${file.name} (${formatSize(file.size)})</span>
+                        <div>
+                            <button onclick="uploadFile('${file.name}')">Upload</button>
+                            <button class="delete" onclick="deleteFile('${file.name}')">Delete</button>
+                        </div>
+                    `;
+                    fileListElement.appendChild(fileItem);
+                });
+
+                // Update space information
+                const spaceInfo = document.getElementById('spaceInfo');
+                spaceInfo.textContent = `Total Space: ${formatSize(data.totalSpace)} | Used Space: ${formatSize(data.usedSpace)}`;
+            } catch (error) {
+                showMessage('Failed to load file list: ' + error.message, 'error');
+            }
         }
 
-        function deleteFile(fileName)
-        {
-            alert(`Delete file: ${fileName}`);
-            // Implement file deletion logic here
+        function navigateUp() {
+            const oldFolder = currentFolder;
+            currentFolder = currentFolder.split('/').slice(0, -2).join('/') + '/';
+            if (currentFolder === '') currentFolder = '/';
+            console.log("Navigating up from", oldFolder, "to", currentFolder);
+            loadFileList();
         }
 
-        function formatSize(size)
-        {
-            if (size >= 1048576)
-            {
+        function openFolder(folderName) {
+            const oldFolder = currentFolder;
+            if (currentFolder === '/') {
+                currentFolder = folderName;
+            } else {
+                // Remove trailing slash before concatenating
+                const base = currentFolder.endsWith('/') ? currentFolder.slice(0, -1) : currentFolder;
+                currentFolder = base + '/' + folderName;
+            }
+            if (!currentFolder.startsWith('/')) currentFolder = '/' + currentFolder;
+            if (!currentFolder.endsWith('/')) currentFolder += '/';
+            console.log("Opening folder:", folderName, "from", oldFolder, "to", currentFolder);
+            loadFileList();
+        }
+
+        async function addFolder() {
+            const folderName = prompt('Enter folder name:');
+            if (!folderName) return;
+
+            try {
+                const response = await fetch('/fsm/createFolder', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `name=${encodeURIComponent(folderName)}`,
+                });
+
+                if (response.ok) {
+                    showMessage(`Folder ${folderName} created successfully`, 'success');
+                    loadFileList();
+                } else {
+                    const text = await response.text();
+                    showMessage(`Failed to create folder: ${text}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Failed to create folder: ${error.message}`, 'error');
+            }
+        }
+
+        async function deleteFolder(folderName) {
+            if (!confirm(`Are you sure you want to delete the folder "${folderName}"?`)) return;
+
+            try {
+                const response = await fetch('/fsm/deleteFolder', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `folder=${encodeURIComponent(folderName)}`,
+                });
+
+                if (response.ok) {
+                    showMessage(`Folder ${folderName} deleted successfully`, 'success');
+                    loadFileList();
+                } else {
+                    const text = await response.text();
+                    showMessage(`Failed to delete folder: ${text}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Failed to delete folder: ${error.message}`, 'error');
+            }
+        }
+
+        async function uploadFile(fileName) {
+            const response = await fetch(`/fsm/download?file=${encodeURIComponent(fileName)}`);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+
+        async function deleteFile(fileName) {
+            if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
+
+            try {
+                const response = await fetch('/fsm/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `file=${encodeURIComponent(fileName)}`,
+                });
+
+                if (response.ok) {
+                    showMessage(`File ${fileName} deleted successfully`, 'success');
+                    loadFileList();
+                } else {
+                    const text = await response.text();
+                    showMessage(`Failed to delete file: ${text}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Failed to delete file: ${error.message}`, 'error');
+            }
+        }
+
+        async function updateFirmware() {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.bin';
+            
+            fileInput.onchange = async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('firmware', file);
+
+                const overlay = document.getElementById('progressOverlay');
+                const progressFill = document.getElementById('progressFill');
+                const progressText = document.getElementById('progressText');
+                
+                overlay.style.display = 'flex';
+                progressText.textContent = 'Uploading firmware...';
+
+                try {
+                    const response = await fetch('/fsm/updateFirmware', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        showMessage('Firmware update initiated. Device will restart.', 'success');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 5000);
+                    } else {
+                        showMessage('Firmware update failed', 'error');
+                    }
+                } catch (error) {
+                    showMessage(`Firmware update failed: ${error.message}`, 'error');
+                } finally {
+                    overlay.style.display = 'none';
+                }
+            };
+
+            fileInput.click();
+        }
+
+        async function updateFileSystem() {
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = '.bin';
+            
+            fileInput.onchange = async function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const formData = new FormData();
+                formData.append('filesystem', file);
+
+                const overlay = document.getElementById('progressOverlay');
+                const progressFill = document.getElementById('progressFill');
+                const progressText = document.getElementById('progressText');
+                
+                overlay.style.display = 'flex';
+                progressText.textContent = 'Uploading filesystem...';
+
+                try {
+                    const response = await fetch('/fsm/updateFS', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        showMessage('Filesystem update initiated. Device will restart.', 'success');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 5000);
+                    } else {
+                        showMessage('Filesystem update failed', 'error');
+                    }
+                } catch (error) {
+                    showMessage(`Filesystem update failed: ${error.message}`, 'error');
+                } finally {
+                    overlay.style.display = 'none';
+                }
+            };
+
+            fileInput.click();
+        }
+
+        async function reboot() {
+            if (!confirm('Are you sure you want to reboot the device?')) return;
+
+            try {
+                const response = await fetch('/fsm/reboot', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    showMessage('Device is rebooting...', 'success');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                } else {
+                    showMessage('Reboot failed', 'error');
+                }
+            } catch (error) {
+                showMessage(`Reboot failed: ${error.message}`, 'error');
+            }
+        }
+
+        function exitApplication() {
+            window.location.href = '/';
+        }
+
+        function formatSize(size) {
+            if (size >= 1048576) {
                 return (size / 1048576).toFixed(2) + ' MB';
-            }
-            else if (size >= 1024)
-            {
+            } else if (size >= 1024) {
                 return (size / 1024).toFixed(2) + ' KB';
-            }
-            else
-            {
-                return size + ' bytes';
+            } else {
+                return size + ' B';
             }
         }
     </script>
