@@ -2,6 +2,9 @@
 
 A file system management library for ESP8266/ESP32 microcontrollers using LittleFS and AsyncWebServer. It provides a web-based interface for managing files and folders on the device's file system.
 
+![Screenshot 2025-01-27 at 16 31 36](https://github.com/user-attachments/assets/1d4132a0-6c61-4fd3-93b5-2d118ded0bcc)
+
+
 ## Features
 
 - Single Page Application (SPA) interface with MacOS-like design
