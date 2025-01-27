@@ -151,6 +151,10 @@ void FSmanager::handleDelete(AsyncWebServerRequest *request)
     }
 
     String fileName = request->getParam("file", true)->value();
+    debugPort->printf("  DELETE: %s\n", fileName.c_str());
+
+    // Remove any double slashes that might occur when combining paths
+    fileName.replace("//", "/");
     if (!fileName.startsWith("/")) fileName = "/" + fileName;
     
     if (isSystemFile(fileName))
@@ -260,6 +264,8 @@ void FSmanager::handleDownload(AsyncWebServerRequest *request)
     }
 
     String fileName = request->getParam("file")->value();
+    // Remove any double slashes that might occur when combining paths
+    fileName.replace("//", "/");
     if (!fileName.startsWith("/")) fileName = "/" + fileName;
     
     debugPort->printf("Download request for: %s\n", fileName.c_str());

@@ -212,7 +212,7 @@
                 <li onclick="exitApplication()">Exit</li>
             </ul>
         </div>
-        <div>File System</div>
+        <div>File System [1]</div>
         <div id="dateTime"></div>
     </header>
 
@@ -449,7 +449,7 @@
         }
 
         async function uploadFile(fileName) {
-            const response = await fetch(`/fsm/download?file=${encodeURIComponent(fileName)}`);
+            const response = await fetch(`/fsm/download?file=${encodeURIComponent(currentFolder + fileName)}`);
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -470,7 +470,7 @@
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: `file=${encodeURIComponent(fileName)}`,
+                    body: `file=${encodeURIComponent(currentFolder + fileName)}`,
                 });
 
                 if (response.ok) {
