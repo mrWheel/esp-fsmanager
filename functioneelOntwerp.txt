@@ -2,21 +2,27 @@ Functionele eisen
 
 - CamelCase naamgeving
 - Allman style coding - ook css style en javascript
-- MacOS look
+- MacOS look (header wit, body licht blauw gradient, footer zelfde kleur als onderkant body)
 - Single Page Application (SPA), single file (html, css en javascript in één bestand)
 - Alle ‘html’ calls vanuit class en SPA moeten beginnen met “/fsm/“
 - Alle te genereren bestanden moeten de naam “FSmanager.<ext>” hebben.
 - De C(++) code moet een class zijn met namen in de vorm van een “FSmanager.h” en “FSmanager.cpp”
 - Alle voortgang moet worden bijgehouden in “voortgang.md”
-- Systeem bestanden (“FSmanager.<ext>” en “index.<ext>” kunnen niet gedelete worden
+- Systeem bestanden (“FSmanager.<ext>” en “index.<ext>”) kunnen niet gedelete worden
 
 Hoofdscherm 
-- kopregel met links dropdown menu, midden de tekst “File System” en rechts de datum/tijd
-- Dropdown menu met standaard “Add Folder”, Update Firmware”, “Update FileSystem”, “ReBoot”  en “Exit” (start “<hostname>/“ of “<hostname>/index.html”)
+- kopregel met links dropdown menu, midden de tekst “File System” en rechts de datum/tijd in formaat "dd-mm-yyyy hh:mm"
+- Dropdown menu met standaard "Upload File", “Add Folder”, Update Firmware”, “Update FileSystem”, “ReBoot”  en “Exit” (start “<hostname>/“ of “<hostname>/index.html”)
+- "Add Folder" moet grayed-out zijn als een sub-folder actief is
 - Met behulp van een methode de mogelijkheid om hier items aan toe te voegen met een callback functie
+- Met behulp van een methode de mogelijkheid om een item te activeren (default) of te "gray-outen" (niet actief)
 - Voetregel met links ruimte voor boodschappen en rechts de tekst “by Willem Aandewiel”. De tekst 80% of zo
-- Body een knop “Download” om een bestand vanaf de PC naar de actieve folder te downloaden en daaronder een gesorteerde lijst van de bestanden in de actieve folder die op het filesystem (littleFS) staan met als eerste de eventuele folders. Achter iedere bestandnaam de grootte (in één van de eenheden bytes, kilobytes of Megabytes -afhankelijk van hoe groot een bestand is-. Daarachter twee knoppen “Upload” en “Delete”
-- Onder de bestandenlijst moet de grootte van het littleFS staan en het totaal gebruikte bytes 9in bytes, kilobytes of megabytes)
+- Body met een gesorteerde lijst van de bestanden in de actieve folder die op het filesystem (littleFS) staan met als eerste de eventuele folders. Achter iedere bestandnaam de grootte (in één van de eenheden bytes, kilobytes of Megabytes -afhankelijk van hoe groot een bestand is-). Daarachter twee knoppen “Download” en “Delete”
+- De bestandlijst heeft een beperkte grootte zodat de naam (max 32posities), de grootte en de knoppen er netjes in passen.
+- Als de bestand-lijst te lang is een scrollbar om naar boven en naar beneden te kunnen scrollen.
+- Alles netjes uitgelijnd onder elkaar. Bestandnaam links uitgelijnd, grootte rechts uitgelijnd en de knoppen onderelkaar.
+- Onder de bestandenlijst moet de grootte van het littleFS staan en het totaal gebruikte bytes en totaal beschikbaar (in bytes, kilobytes of megabytes)
 - Er kan maar één niveau van folders bestaan. Een folder kan alleen gedelete worden als er geen bestanden in staan. Het bovenste item/icoon van een folder is een knop om terug te gaan naar de root folder.
 - Up- en downloads moet een voortgang-balk (pop-up) tonen, evenals de Updates
+- Bij het Uploaden van een bestand moeten ook alle 'dot' folders en bestanden getoond worden.
 
