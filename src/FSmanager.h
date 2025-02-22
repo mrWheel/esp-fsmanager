@@ -3,20 +3,33 @@
 
 #include <Arduino.h>
 #ifdef ESP32
-    #include <AsyncTCP.h>
+    #include <WebServer.h>
     #include <LittleFS.h>
+    #include <esp_partition.h>
 #else
-    #include <ESPAsyncTCP.h>
+    #include <ESP8266WebServer.h>
+    #include <FS.h>
     #include <LittleFS.h>
 #endif
-#include <ESPAsyncWebServer.h>
+
+#ifdef ESP32
+    #include <Update.h>
+#else
+    #include <ESP8266HTTPUpdate.h>
+#endif
 #include <functional>
 #include <vector>
+
+#ifdef ESP32
+  using WebServerClass = WebServer;
+#else
+  using WebServerClass = ESP8266WebServer;
+#endif
 
 class FSmanager
 {
 private:
-    AsyncWebServer *server;
+    WebServerClass *server;
     String htmlPage;
     String currentFolder;
     Stream* debugPort;
@@ -28,22 +41,22 @@ private:
     std::vector<MenuItem> menuItems;
 
     void loadHtmlPage();
-    void handleFileList(AsyncWebServerRequest *request);
-    void handleDelete(AsyncWebServerRequest *request);
-    void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final);
-    void handleDownload(AsyncWebServerRequest *request);
-    void handleCreateFolder(AsyncWebServerRequest *request);
-    void handleDeleteFolder(AsyncWebServerRequest *request);
-    void handleUpdateFirmware(AsyncWebServerRequest *request);
-    void handleUpdateFileSystem(AsyncWebServerRequest *request);
-    void handleReboot(AsyncWebServerRequest *request);
+    void handleFileList();
+    void handleDelete();
+    void handleUpload();
+    void handleDownload();
+    void handleCreateFolder();
+    void handleDeleteFolder();
+    void handleUpdateFirmware();
+    void handleUpdateFileSystem();
+    void handleReboot();
     String formatSize(size_t bytes);
     bool isSystemFile(const String &filename);
     size_t getTotalSpace();
     size_t getUsedSpace();
 
 public:
-    FSmanager(AsyncWebServer &server);
+    FSmanager(WebServerClass &server);
     void begin(Stream* debugOutput = &Serial);
     void addMenuItem(const String &name, std::function<void()> callback);
 };

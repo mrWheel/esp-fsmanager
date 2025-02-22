@@ -1,13 +1,21 @@
 #include <Arduino.h>
 #include <WiFiManager.h>
 #include <Networking.h>
-#include <ESPAsyncWebServer.h>
+#ifdef ESP32
+  #include <WebServer.h>
+#else
+  #include <ESP8266WebServer.h>
+#endif
 #include "FSmanager.h"
 
 Networking* networking = nullptr;
 Stream* debug = nullptr;
 
-AsyncWebServer server(80);
+#ifdef ESP32
+  WebServer server(80);
+#else
+  ESP8266WebServer server(80);
+#endif
 FSmanager fsManager(server);
 
 void setup()
@@ -34,7 +42,6 @@ void setup()
         debug->println(networking->getIPAddressString());
     }
 
-
     LittleFS.begin();
 
     fsManager.begin(debug);
@@ -44,19 +51,18 @@ void setup()
         Serial.println("Custom menu option triggered.");
     });
 
-    server.begin();
-    Serial.println("Webserver started!");
-
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-    {
-        request->send(LittleFS, "/index.html", "text/html");    
+    server.on("/", HTTP_GET, []() {
+        File file = LittleFS.open("/index.html", "r");
+        server.streamFile(file, "text/html");
+        file.close();
     });
 
+    server.begin();
+    Serial.println("Webserver started!");
 }
 
 void loop()
 {
-  networking->loop();
-
+    networking->loop();
+    server.handleClient();
 }
-
