@@ -55,7 +55,8 @@ size_t FSmanager::getUsedSpace()
 #endif
 }
 
-void FSmanager::handleFileList()
+/***** 
+ void FSmanager::handleFileList()
 {
     std::string json = "{\"files\":[";
     std::string folder = "/";
@@ -160,6 +161,147 @@ void FSmanager::handleFileList()
     
     server->send(200, "application/json", json.c_str());
 }
+*****/
+void FSmanager::handleFileList()
+{
+    std::string json = "{\"files\":[";
+    std::string folder = "/";
+    
+    if (server->hasArg("folder"))
+    {
+        std::string folderArg = std::string(server->arg("folder").c_str());
+        // Remove any double slashes and ensure proper formatting
+        size_t pos;
+        while ((pos = folderArg.find("//")) != std::string::npos)
+        {
+            folderArg.replace(pos, 2, "/");
+        }
+        if (folderArg[0] != '/') folderArg = "/" + folderArg;
+        if (folderArg[folderArg.length()-1] != '/') folderArg += "/";
+        folder = folderArg;
+        currentFolder = folder;  // Update current folder
+        debugPort->printf("Listing folder: %s\n", folder.c_str());
+    }
+    
+    File root = LittleFS.open(folder.c_str(), "r");
+    if (!root)
+    {
+        server->send(400, "application/json", "{\"error\":\"Invalid folder\"}");
+        return;
+    }
+
+    if (!root.isDirectory())
+    {
+        server->send(400, "application/json", "{\"error\":\"Not a directory\"}");
+        return;
+    }
+
+    debugPort->println("Files in folder:");
+    
+    bool first = true;
+    File file = root.openNextFile();
+    bool isEmpty = true;
+    
+    // First check if folder is empty
+    while (file)
+    {
+        isEmpty = false;
+        file = root.openNextFile();
+    }
+    
+    if (isEmpty)
+    {
+        json += "],";
+        json += "\"totalSpace\":";
+        json += std::to_string(getTotalSpace());
+        json += ",\"usedSpace\":";
+        json += std::to_string(getUsedSpace());
+        json += "}";
+        
+        server->sendHeader("X-Empty-Folder", "true");
+        server->send(200, "application/json", json.c_str());
+        return;
+    }
+    
+    // Reset and list files
+    root.close();
+    root = LittleFS.open(folder.c_str(), "r");
+    file = root.openNextFile();
+    
+    // First list directories
+    while (file)
+    {
+        String tempName = file.name();
+        std::string name(tempName.c_str());
+        // Remove parent folder path from name
+        if (name.find(folder) == 0)
+        {
+            name = name.substr(folder.length());
+        }
+        else if (name[0] == '/')
+        {
+            name = name.substr(1);
+        }
+        
+        if (file.isDirectory())
+        {
+            if (!first) json += ",";
+            first = false;
+            
+            debugPort->printf("  DIR: %s\n", name.c_str());
+            
+            json += "{\"name\":\"";
+            json += name;
+            json += "\",\"isDir\":true,\"size\":0}";
+        }
+        file = root.openNextFile();
+    }
+    
+    // Then list files
+    root.close();
+    root = LittleFS.open(folder.c_str(), "r");
+    file = root.openNextFile();
+    while (file)
+    {
+        String tempName = file.name();
+        std::string name(tempName.c_str());
+        // Remove parent folder path from name
+        if (name.find(folder) == 0)
+        {
+            name = name.substr(folder.length());
+        }
+        else if (name[0] == '/')
+        {
+            name = name.substr(1);
+        }
+        
+        if (!file.isDirectory())
+        {
+            if (!first) json += ",";
+            first = false;
+            
+            debugPort->printf("  FILE: %s (%d bytes)\n", name.c_str(), file.size());
+            
+            json += "{\"name\":\"";
+            json += name;
+            json += "\",\"isDir\":false,\"size\":";
+            json += std::to_string(file.size());
+            json += "}";
+        }
+        file = root.openNextFile();
+    }
+    
+    json += "],";
+    json += "\"totalSpace\":";
+    json += std::to_string(getTotalSpace());
+    json += ",\"usedSpace\":";
+    json += std::to_string(getUsedSpace());
+    json += "}";
+    
+    server->send(200, "application/json", json.c_str());
+}
+
+
 
 void FSmanager::handleDelete()
 {
@@ -200,43 +342,6 @@ void FSmanager::handleDelete()
 void FSmanager::handleUpload()
 {
     HTTPUpload& upload = server->upload();
-    Serial.println("=== Upload Info ===");
-    Serial.print("Status: ");
-    switch (upload.status) {
-        case UPLOAD_FILE_START:
-            Serial.println("UPLOAD_FILE_START");
-            break;
-        case UPLOAD_FILE_WRITE:
-            Serial.println("UPLOAD_FILE_WRITE");
-            break;
-        case UPLOAD_FILE_END:
-            Serial.println("UPLOAD_FILE_END");
-            break;
-        case UPLOAD_FILE_ABORTED:
-            Serial.println("UPLOAD_FILE_ABORTED");
-            break;
-    }
-
-    Serial.print("Field Name: ");
-    Serial.println(upload.name);
-
-    Serial.print("Filename: ");
-    Serial.println(upload.filename);
-
-    Serial.print("Total Size: ");
-    Serial.println(upload.totalSize);
-
-    Serial.print("Current Size: ");
-    Serial.println(upload.currentSize);
-
-    Serial.print("Data Type: ");
-    Serial.println(upload.type);
-
-    Serial.print("Data Chunk: ");
-    for (size_t i = 0; i < upload.currentSize; i++) {
-        Serial.print((char)upload.buf[i]);
-    }
-    Serial.println();
 
     if (upload.status == UPLOAD_FILE_START)
     {

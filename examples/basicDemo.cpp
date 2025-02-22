@@ -22,82 +22,70 @@ FSmanager fsManager(server);
 
 
 // Cross-platform function to list all files on LittleFS
-void listAllFilesRecursive(const String &path, int indentLevel) {
-  #if defined(ESP8266)
-      Dir dir = LittleFS.openDir(path);
-      while (dir.next()) 
-      {
-          // Print indentation
-          for (int i = 0; i < indentLevel; i++) {
-              Serial.print("  ");  // Two spaces per indent level
-          }
-          
-          String fileName = path + dir.fileName();
-          File file = LittleFS.open(fileName.c_str(), "r");
-          
-          if (!file) {
-              Serial.print("Failed to open: ");
-              Serial.println(fileName);
-              continue;
-          }
-          
-          if (file.isDirectory()) {
-              Serial.print("DIR : ");
-              Serial.println(fileName);
-              listAllFilesRecursive(fileName + "/", indentLevel + 1); // Recursively list subdirectory
-          } else {
-              Serial.print("FILE: ");
-              Serial.print(fileName);
-              Serial.print(" - SIZE: ");
-              Serial.println(file.size());
-          }
-          file.close();
-      }
-  #elif defined(ESP32)
-      File dir = LittleFS.open(path);
-      if (!dir || !dir.isDirectory()) {
-          return;
-      }
-      File file = dir.openNextFile();
-      while (file) {
-          for (int i = 0; i < indentLevel; i++) {
-              Serial.print("  ");
-          }
-  
-          if (file.isDirectory()) {
-              Serial.print("DIR : ");
-              Serial.println(file.name());
-              listAllFilesRecursive(file.name(), indentLevel + 1); // Recursively list subdirectory
-          } else {
-              Serial.print("FILE: ");
-              Serial.print(file.name());
-              Serial.print(" - SIZE: ");
-              Serial.println(file.size());
-          }
-          file = dir.openNextFile();
-      }
-  #endif
-  }
-  
+#include <LittleFS.h>
 
-void listAllFiles() 
-{
-  Serial.println("Listing all files on LittleFS:");
-  
+// Recursive function to list all files and directories
+#include <LittleFS.h>
+
+// Recursive function to list all files and directories
+void listAllFilesRecursive(const char* dirname, uint8_t level) {
 #if defined(ESP8266)
-  // For ESP8266
-  listAllFilesRecursive("/", 0); // Start from root with no indentation
+    Dir dir = LittleFS.openDir(dirname);
+    while (dir.next()) {
+        for (uint8_t i = 0; i < level; i++) {
+            Serial.print("  "); // Indentation for subdirectories
+        }
+        if (dir.isDirectory()) {
+            Serial.print("DIR : ");
+            Serial.println(dir.fileName());
+            String subDir = String(dirname) + dir.fileName() + "/";
+            listAllFilesRecursive(subDir.c_str(), level + 1);
+        } else {
+            Serial.print("FILE: ");
+            Serial.print(dir.fileName());
+            Serial.print(" - SIZE: ");
+            Serial.println(dir.fileSize());
+        }
+    }
 #elif defined(ESP32)
-  // For ESP32
-  File root = LittleFS.open("/");
-  if (!root || !root.isDirectory()) 
-  {
-      Serial.println("Failed to open directory or not a directory");
-      return;
-  }
-  listAllFilesRecursive("/", 0); // Start with no indentation
+    File root = LittleFS.open(dirname);
+    if (!root || !root.isDirectory()) {
+        Serial.println("Failed to open directory or not a directory");
+        return;
+    }
+
+    File file = root.openNextFile();
+    while (file) {
+        for (uint8_t i = 0; i < level; i++) {
+            Serial.print("  "); // Indentation for subdirectories
+        }
+        if (file.isDirectory()) {
+            Serial.print("DIR : ");
+            Serial.println(file.name());
+
+            // Fix: Always prepend '/' for subdirectories
+            String subDir = String(file.name());
+            if (!subDir.startsWith("/")) {
+                subDir = "/" + subDir;
+            }
+            listAllFilesRecursive(subDir.c_str(), level + 1);
+        } else {
+            Serial.print("FILE: ");
+            Serial.print(file.name());
+            Serial.print(" - SIZE: ");
+            Serial.println(file.size());
+        }
+        file = root.openNextFile();
+    }
 #endif
 }
+
+// Main function to list all files on LittleFS
+void listAllFiles() {
+    Serial.println("Listing all files on LittleFS:");
+    listAllFilesRecursive("/", 0); // Start from root with no indentation
+}
+
 
 String getIndexHtml()
 {
@@ -147,8 +135,6 @@ String getIndexHtml()
 </head>
 <body>
   <h1>FSManager</h1>
-  
-  <div id="status"></div>
 
   <div id="fileList">
     <h2>Files</h2>
@@ -178,6 +164,8 @@ String getIndexHtml()
     <h2>System</h2>
     <button class="button reboot" onclick="reboot()">Reboot</button>
   </div>
+  
+  <div id="status"></div>
 
   <script>
     const statusDiv = document.getElementById('status');
@@ -213,8 +201,34 @@ String getIndexHtml()
 
     function loadFileList(path = currentPath) {
       fetch('/fsm/filelist?folder=' + encodeURIComponent(path))
-        .then(response => response.json())
+        .then(response => {
+          if (!response.ok) {
+            if (response.status === 400) {
+              showStatus('Invalid or inaccessible folder', true);
+              // Return to parent folder only if the folder doesn't exist
+              // Don't return to parent if it's just empty
+              if (currentPath !== '/' && !response.headers.get('X-Empty-Folder')) {
+                navigateToFolder(getParentFolder(currentPath));
+              }
+              throw new Error('Invalid folder');
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.text().then(text => {
+            try {
+              if (!text) {
+                throw new Error('Empty response');
+              }
+              return JSON.parse(text);
+            } catch (e) {
+              throw new Error(`Invalid JSON: ${text}`);
+            }
+          });
+        })
         .then(data => {
+          if (!data || !Array.isArray(data.files)) {
+            throw new Error('Invalid response format');
+          }
           const filesDiv = document.getElementById('files');
           const spaceInfo = document.getElementById('spaceInfo');
           let html = '<div style="margin-bottom: 10px;">';
@@ -227,38 +241,42 @@ String getIndexHtml()
           html += '<table style="width: 100%; border-collapse: collapse;">';
           html += '<tr style="background-color: #f2f2f2;"><th style="text-align: left; padding: 8px;">Name</th><th style="text-align: right; padding: 8px;">Size</th><th style="text-align: right; padding: 8px;">Actions</th></tr>';
           
-          // First show folders
-          data.files.forEach(file => {
-            if (file.isDir) {
-              const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
-              html += `<tr style="border-bottom: 1px solid #ddd;">
-                <td style="padding: 8px; cursor: pointer;" onclick="navigateToFolder('${fullPath}')">[DIR] ${file.name}</td>
-                <td style="text-align: right; padding: 8px;">-</td>
-                <td style="text-align: right; padding: 8px;">
-                  <button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFolder('${file.name}')">Delete</button>
-                </td>
-              </tr>`;
-            }
-          });
+          if (data.files.length === 0) {
+            html += '<tr><td colspan="3" style="text-align: center; padding: 20px;">Empty folder</td></tr>';
+          } else {
+            // First show folders
+            data.files.forEach(file => {
+              if (file.isDir) {
+                const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
+                html += `<tr style="border-bottom: 1px solid #ddd;">
+                  <td style="padding: 8px; cursor: pointer;" onclick="navigateToFolder('${fullPath}')">[DIR] ${file.name}</td>
+                  <td style="text-align: right; padding: 8px;">-</td>
+                  <td style="text-align: right; padding: 8px;">
+                    <button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFolder('${file.name}')">Delete</button>
+                  </td>
+                </tr>`;
+              }
+            });
 
-          // Then show files
-          data.files.forEach(file => {
-            if (!file.isDir) {
-              html += `<tr style="border-bottom: 1px solid #ddd;">
-                <td style="padding: 8px;">[FILE] ${file.name}</td>
-                <td style="text-align: right; padding: 8px;">${formatBytes(file.size)}</td>
-                <td style="text-align: right; padding: 8px;">
-                  <button class="button download" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="downloadFile('${file.name}')">Download</button>
-                  <button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFile('${file.name}')">Delete</button>
-                </td>
-              </tr>`;
-            }
-          });
+            // Then show files
+            data.files.forEach(file => {
+              if (!file.isDir) {
+                html += `<tr style="border-bottom: 1px solid #ddd;">
+                  <td style="padding: 8px;">[FILE] ${file.name}</td>
+                  <td style="text-align: right; padding: 8px;">${formatBytes(file.size)}</td>
+                  <td style="text-align: right; padding: 8px;">
+                    <button class="button download" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="downloadFile('${file.name}')">Download</button>
+                    <button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFile('${file.name}')">Delete</button>
+                  </td>
+                </tr>`;
+              }
+            });
+          }
           html += '</table>';
           filesDiv.innerHTML = html;
 
-          const usedSpace = formatBytes(data.usedSpace);
-          const totalSpace = formatBytes(data.totalSpace);
+          const usedSpace = formatBytes(data.usedSpace || 0);
+          const totalSpace = formatBytes(data.totalSpace || 0);
           spaceInfo.innerHTML = `<p>Storage: ${usedSpace} used of ${totalSpace}</p>`;
         })
         .catch(error => showStatus('Failed to load file list: ' + error, true));
