@@ -200,11 +200,47 @@ void FSmanager::handleDelete()
 void FSmanager::handleUpload()
 {
     HTTPUpload& upload = server->upload();
+    Serial.println("=== Upload Info ===");
+    Serial.print("Status: ");
+    switch (upload.status) {
+        case UPLOAD_FILE_START:
+            Serial.println("UPLOAD_FILE_START");
+            break;
+        case UPLOAD_FILE_WRITE:
+            Serial.println("UPLOAD_FILE_WRITE");
+            break;
+        case UPLOAD_FILE_END:
+            Serial.println("UPLOAD_FILE_END");
+            break;
+        case UPLOAD_FILE_ABORTED:
+            Serial.println("UPLOAD_FILE_ABORTED");
+            break;
+    }
+
+    Serial.print("Field Name: ");
+    Serial.println(upload.name);
+
+    Serial.print("Filename: ");
+    Serial.println(upload.filename);
+
+    Serial.print("Total Size: ");
+    Serial.println(upload.totalSize);
+
+    Serial.print("Current Size: ");
+    Serial.println(upload.currentSize);
+
+    Serial.print("Data Type: ");
+    Serial.println(upload.type);
+
+    Serial.print("Data Chunk: ");
+    for (size_t i = 0; i < upload.currentSize; i++) {
+        Serial.print((char)upload.buf[i]);
+    }
+    Serial.println();
 
     if (upload.status == UPLOAD_FILE_START)
     {
         std::string path;
-        
         
         // Get filename from upload
         char nameBuf[256];
@@ -212,8 +248,8 @@ void FSmanager::handleUpload()
         debugPort->println("Default filename: file");
 
 #ifdef ESP32
-        if (upload.name) {
-            strncpy(nameBuf, upload.name.c_str(), sizeof(nameBuf) - 1);
+        if (upload.filename) {
+            strncpy(nameBuf, upload.filename.c_str(), sizeof(nameBuf) - 1);
             debugPort->printf("Upload name (ESP32): %s\n", nameBuf);
         }
 #else
