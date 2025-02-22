@@ -331,8 +331,14 @@
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const formData = new FormData();
-                formData.append('file', file);
-                const url = `/fsm/upload?folder=${encodeURIComponent(currentFolder)}`;
+                // Replace spaces in filename before upload
+                const renamedFile = new File([file], file.name.replace(/ /g, '_'), {
+                    type: file.type,
+                    lastModified: file.lastModified
+                });
+                formData.append('file', renamedFile);
+                formData.append('folder', currentFolder);
+                const url = '/fsm/upload';
                 console.log("Uploading file:", file.name, "to folder:", currentFolder);
 
                 try {

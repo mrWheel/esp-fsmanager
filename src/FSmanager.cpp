@@ -1,70 +1,34 @@
 #include "FSmanager.h"
-#ifdef ESP32
-  #include <Update.h>
-#else
-  #include <ESP8266HTTPUpdate.h>
-#endif
 
 FSmanager::FSmanager(WebServerClass &srv)
 {
     server = &srv;
     currentFolder = "/";
     debugPort = &Serial;
-    htmlPage = "<h1>Loading...</h1>";
 }
 
-void FSmanager::loadHtmlPage()
+std::string FSmanager::formatSize(size_t bytes)
 {
-    debugPort->println("Loading FSmanager.html...");
-    File file = LittleFS.open("/FSmanager.html", "r");
-    if (!file)
-    {
-        debugPort->println("Failed to load FSmanager.html: File not found in LittleFS");
-        htmlPage = "<h1>Error: FSmanager.html not found!</h1><p>Please ensure the file exists in the root directory of LittleFS.</p>";
-        return;
-    }
-
-    if (file.size() == 0)
-    {
-        debugPort->println("Failed to load FSmanager.html: File is empty");
-        htmlPage = "<h1>Error: FSmanager.html is empty!</h1>";
-        file.close();
-        return;
-    }
-
-    htmlPage = file.readString();
-    file.close();
-    
-    if (htmlPage.length() == 0)
-    {
-        debugPort->println("Failed to load FSmanager.html: Failed to read file content");
-        htmlPage = "<h1>Error: Failed to read FSmanager.html content!</h1>";
-        return;
-    }
-    
-    debugPort->println("FSmanager.html loaded successfully");
-}
-
-String FSmanager::formatSize(size_t bytes)
-{
+    char buffer[32];
     if (bytes < 1024)
     {
-        return String(bytes) + " B";
+        snprintf(buffer, sizeof(buffer), "%zu B", bytes);
     }
     else if (bytes < (1024 * 1024))
     {
-        return String(bytes / 1024.0, 1) + " KB";
+        snprintf(buffer, sizeof(buffer), "%.1f KB", bytes / 1024.0);
     }
     else
     {
-        return String(bytes / 1024.0 / 1024.0, 1) + " MB";
+        snprintf(buffer, sizeof(buffer), "%.1f MB", bytes / 1024.0 / 1024.0);
     }
+    return std::string(buffer);
 }
 
-bool FSmanager::isSystemFile(const String &filename)
+bool FSmanager::isSystemFile(const std::string &filename)
 {
-    String fname = filename;
-    if (fname.startsWith("/")) fname = fname.substring(1);
+    std::string fname = filename;
+    if (fname[0] == '/') fname = fname.substr(1);
     return (fname == "index.html");
 }
 
@@ -93,16 +57,21 @@ size_t FSmanager::getUsedSpace()
 
 void FSmanager::handleFileList()
 {
-    String json = "{\"files\":[";
-    String folder = "/";
+    std::string json = "{\"files\":[";
+    std::string folder = "/";
     
     if (server->hasArg("folder"))
     {
-        folder = server->arg("folder");
+        std::string folderArg = server->arg("folder").c_str();
         // Remove any double slashes and ensure proper formatting
-        folder.replace("//", "/");
-        if (!folder.startsWith("/")) folder = "/" + folder;
-        if (!folder.endsWith("/")) folder += "/";
+        size_t pos;
+        while ((pos = folderArg.find("//")) != std::string::npos)
+        {
+            folderArg.replace(pos, 2, "/");
+        }
+        if (folderArg[0] != '/') folderArg = "/" + folderArg;
+        if (folderArg[folderArg.length()-1] != '/') folderArg += "/";
+        folder = folderArg;
         debugPort->printf("Listing folder: %s\n", folder.c_str());
     }
     
@@ -121,15 +90,15 @@ void FSmanager::handleFileList()
     // First list directories
     while (file)
     {
-        String name = String(file.name());
+        std::string name = file.name();
         // Remove parent folder path from name
-        if (name.startsWith(folder))
+        if (name.find(folder) == 0)
         {
-            name = name.substring(folder.length());
+            name = name.substr(folder.length());
         }
-        else if (name.startsWith("/"))
+        else if (name[0] == '/')
         {
-            name = name.substring(1);
+            name = name.substr(1);
         }
         
         if (file.isDirectory())
@@ -152,15 +121,15 @@ void FSmanager::handleFileList()
     file = root.openNextFile();
     while (file)
     {
-        String name = String(file.name());
+        std::string name = file.name();
         // Remove parent folder path from name
-        if (name.startsWith(folder))
+        if (name.find(folder) == 0)
         {
-            name = name.substring(folder.length());
+            name = name.substr(folder.length());
         }
-        else if (name.startsWith("/"))
+        else if (name[0] == '/')
         {
-            name = name.substring(1);
+            name = name.substr(1);
         }
         
         if (!file.isDirectory())
@@ -173,7 +142,7 @@ void FSmanager::handleFileList()
             json += "{\"name\":\"";
             json += name;
             json += "\",\"isDir\":false,\"size\":";
-            json += String(file.size());
+            json += std::to_string(file.size());
             json += "}";
         }
         file = root.openNextFile();
@@ -181,12 +150,12 @@ void FSmanager::handleFileList()
     
     json += "],";
     json += "\"totalSpace\":";
-    json += String(getTotalSpace());
+    json += std::to_string(getTotalSpace());
     json += ",\"usedSpace\":";
-    json += String(getUsedSpace());
+    json += std::to_string(getUsedSpace());
     json += "}";
     
-    server->send(200, "application/json", json);
+    server->send(200, "application/json", json.c_str());
 }
 
 void FSmanager::handleDelete()
@@ -197,12 +166,16 @@ void FSmanager::handleDelete()
         return;
     }
 
-    String fileName = server->arg("file");
+    std::string fileName = server->arg("file").c_str();
     debugPort->printf("  DELETE: %s\n", fileName.c_str());
 
     // Remove any double slashes that might occur when combining paths
-    fileName.replace("//", "/");
-    if (!fileName.startsWith("/")) fileName = "/" + fileName;
+    size_t pos;
+    while ((pos = fileName.find("//")) != std::string::npos)
+    {
+        fileName.replace(pos, 2, "/");
+    }
+    if (fileName[0] != '/') fileName = "/" + fileName;
     
     if (isSystemFile(fileName))
     {
@@ -210,10 +183,10 @@ void FSmanager::handleDelete()
         return;
     }
 
-    if (LittleFS.exists(fileName))
+    if (LittleFS.exists(fileName.c_str()))
     {
-        LittleFS.remove(fileName);
-        server->send(200, "text/plain", "File deleted: " + fileName);
+        LittleFS.remove(fileName.c_str());
+        server->send(200, "text/plain", "File deleted: " + String(fileName.c_str()));
     }
     else
     {
@@ -224,41 +197,57 @@ void FSmanager::handleDelete()
 void FSmanager::handleUpload()
 {
     HTTPUpload& upload = server->upload();
-    static File uploadFile;
 
     if (upload.status == UPLOAD_FILE_START)
     {
-        String path;
-        String folder = "/";
+        std::string path;
+        uploadFolder = "/";
         
-        if (server->hasArg("folder"))
+        // Get folder from form data
+        if (server->hasArg("folder")) 
         {
-            folder = server->arg("folder");
-            debugPort->printf("Found folder parameter: %s\n", folder.c_str());
-            
-            // Remove any double slashes and ensure proper formatting
-            folder.replace("//", "/");
-            if (!folder.startsWith("/")) folder = "/" + folder;
-            if (!folder.endsWith("/")) folder += "/";
-            
-            // Create folder if it doesn't exist
-            if (!LittleFS.exists(folder))
+            uploadFolder = server->arg("folder").c_str();
+            debugPort->printf("Found folder in form data: %s\n", uploadFolder.c_str());
+        }
+        
+        // Remove any double slashes and ensure proper formatting
+        size_t pos;
+        while ((pos = uploadFolder.find("//")) != std::string::npos)
+        {
+            uploadFolder.replace(pos, 2, "/");
+        }
+        if (uploadFolder[0] != '/') uploadFolder = "/" + uploadFolder;
+        if (uploadFolder[uploadFolder.length()-1] != '/') uploadFolder += "/";
+        
+        // Create folder if it doesn't exist
+        if (!LittleFS.exists(uploadFolder.c_str()))
+        {
+            if (!LittleFS.mkdir(uploadFolder.c_str()))
             {
-                if (!LittleFS.mkdir(folder))
-                {
-                    debugPort->printf("Failed to create folder: %s\n", folder.c_str());
-                    server->send(500, "text/plain", "Failed to create folder");
-                    return;
-                }
+                debugPort->printf("Failed to create folder: %s\n", uploadFolder.c_str());
+                server->send(500, "text/plain", "Failed to create folder");
+                return;
             }
         }
         
-        String fname = upload.filename;
-        if (fname.startsWith("/")) fname = fname.substring(1);
-        path = folder + fname;
-        path.replace("//", "/");
+#ifdef ESP32
+        std::string fname = String(upload.name).c_str();
+#else
+        std::string fname = String(upload.filename).c_str();
+#endif
+        // Replace spaces with underscores
+        while ((pos = fname.find(" ")) != std::string::npos)
+        {
+            fname.replace(pos, 1, "_");
+        }
+        if (fname[0] == '/') fname = fname.substr(1);
+        path = uploadFolder + fname;
+        while ((pos = path.find("//")) != std::string::npos)
+        {
+            path.replace(pos, 2, "/");
+        }
         
-        debugPort->printf("Upload to folder: %s\n", folder.c_str());
+        debugPort->printf("Upload to folder: %s\n", uploadFolder.c_str());
         debugPort->printf("Final upload path: %s\n", path.c_str());
         
         /******
@@ -270,7 +259,7 @@ void FSmanager::handleUpload()
         }
         ******/
        
-        uploadFile = LittleFS.open(path, "w");
+        uploadFile = LittleFS.open(path.c_str(), "w");
         if (!uploadFile)
         {
             debugPort->printf("Failed to open file for writing: %s\n", path.c_str());
@@ -298,7 +287,20 @@ void FSmanager::handleUpload()
         {
             uploadFile.close();
             debugPort->println("Upload complete");
-            server->send(200, "text/plain", "File uploaded: " + upload.filename);
+#ifdef ESP32
+            server->send(200, "text/plain", "File uploaded: " + String(upload.name));
+#else
+            server->send(200, "text/plain", "File uploaded: " + String(upload.filename));
+#endif
+        }
+    }
+    else
+    {
+        // Any other status (like aborted upload)
+        if (uploadFile)
+        {
+            uploadFile.close();
+            debugPort->println("Upload ended unexpectedly");
         }
     }
 }
@@ -312,17 +314,21 @@ void FSmanager::handleDownload()
         return;
     }
 
-    String fileName = server->arg("file");
+    std::string fileName = server->arg("file").c_str();
     // Remove any double slashes that might occur when combining paths
-    fileName.replace("//", "/");
-    if (!fileName.startsWith("/")) fileName = "/" + fileName;
+    size_t pos;
+    while ((pos = fileName.find("//")) != std::string::npos)
+    {
+        fileName.replace(pos, 2, "/");
+    }
+    if (fileName[0] != '/') fileName = "/" + fileName;
     
     debugPort->printf("Download request for: %s\n", fileName.c_str());
     
-    if (LittleFS.exists(fileName))
+    if (LittleFS.exists(fileName.c_str()))
     {
         debugPort->println("File found, starting download");
-        File file = LittleFS.open(fileName, "r");
+        File file = LittleFS.open(fileName.c_str(), "r");
         server->streamFile(file, "application/octet-stream");
         file.close();
     }
@@ -341,19 +347,67 @@ void FSmanager::handleCreateFolder()
         return;
     }
 
-    String folderName = server->arg("name");
-    folderName.replace("//", "/");
-    if (!folderName.startsWith("/")) folderName = "/" + folderName;
-    if (!folderName.endsWith("/")) folderName += "/";
+    std::string folderName = server->arg("name").c_str();
+    debugPort->printf("Raw folder name: %s\n", folderName.c_str());
+    
+    // Clean up the path
+    size_t pos;
+    while ((pos = folderName.find("//")) != std::string::npos)
+    {
+        folderName.replace(pos, 2, "/");
+    }
+    if (folderName[0] != '/') folderName = "/" + folderName;
+    if (folderName[folderName.length()-1] == '/') folderName = folderName.substr(0, folderName.length()-1);
     
     debugPort->printf("Creating folder: %s\n", folderName.c_str());
     
-    if (LittleFS.mkdir(folderName))
+    // Only allow folder creation in root
+    if (folderName.find('/', 1) != std::string::npos) {
+        debugPort->println("Cannot create subfolders");
+        server->send(400, "text/plain", "Cannot create subfolders");
+        return;
+    }
+    
+    // Create the final directory
+    // Check if a file with the same name exists
+    if (LittleFS.exists(folderName.c_str())) 
     {
-        server->send(200, "text/plain", "Folder created: " + folderName);
+        File entry = LittleFS.open(folderName.c_str(), "r");
+        if (entry) 
+        {
+            bool isDir = entry.isDirectory();
+            entry.close();
+            
+            if (isDir) 
+            {
+                debugPort->printf("Folder already exists: %s\n", folderName.c_str());
+                server->send(200, "text/plain", "Folder already exists: " + String(folderName.c_str()));
+            } 
+            else 
+            {
+                debugPort->printf("File exists with same name: %s\n", folderName.c_str());
+                server->send(400, "text/plain", "A file exists with the same name");
+            }
+            return;
+        }
+    }
+
+    // Try to create the folder if it doesn't exist
+    bool success = false;
+#ifdef ESP32
+    success = LittleFS.mkdir(folderName.c_str());
+#else
+    success = LittleFS.mkdir(folderName.c_str());
+#endif
+
+    if (success)
+    {
+        debugPort->printf("Folder created successfully: %s\n", folderName.c_str());
+        server->send(200, "text/plain", "Folder created: " + String(folderName.c_str()));
     }
     else
     {
+        debugPort->printf("Failed to create folder: %s\n", folderName.c_str());
         server->send(500, "text/plain", "Failed to create folder");
     }
 }
@@ -366,10 +420,14 @@ void FSmanager::handleDeleteFolder()
         return;
     }
 
-    String folderName = server->arg("folder");
-    folderName.replace("//", "/");
-    if (!folderName.startsWith("/")) folderName = "/" + folderName;
-    if (!folderName.endsWith("/")) folderName += "/";
+    std::string folderName = server->arg("folder").c_str();
+    size_t pos;
+    while ((pos = folderName.find("//")) != std::string::npos)
+    {
+        folderName.replace(pos, 2, "/");
+    }
+    if (folderName[0] != '/') folderName = "/" + folderName;
+    if (folderName[folderName.length()-1] != '/') folderName += "/";
     
     debugPort->printf("Deleting folder: %s\n", folderName.c_str());
     
@@ -387,115 +445,13 @@ void FSmanager::handleDeleteFolder()
         return;
     }
 
-    if (LittleFS.rmdir(folderName))
+    if (LittleFS.rmdir(folderName.c_str()))
     {
-        server->send(200, "text/plain", "Folder deleted: " + folderName);
+        server->send(200, "text/plain", "Folder deleted: " + String(folderName.c_str()));
     }
     else
     {
         server->send(500, "text/plain", "Failed to delete folder");
-    }
-}
-
-void FSmanager::handleUpdateFirmware()
-{
-    debugPort->println("Firmware update requested");
-    
-    HTTPUpload& upload = server->upload();
-    static size_t fileSize = 0;
-    
-    if (upload.status == UPLOAD_FILE_START)
-    {
-        fileSize = 0;
-        debugPort->println("Starting firmware update...");
-
-        // Platform-specific update begin
-        #ifdef ESP32
-            if (!Update.begin(UPDATE_SIZE_UNKNOWN))
-        #else
-            if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000))
-        #endif
-        {
-            debugPort->println("OTA could not begin");
-            server->send(400, "text/plain", "OTA could not begin");
-            return;
-        }
-    }
-    else if (upload.status == UPLOAD_FILE_WRITE)
-    {
-        fileSize += upload.currentSize;
-        debugPort->printf("Writing firmware data... (%d bytes)\n", fileSize);
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
-        {
-            debugPort->println("OTA write error");
-            server->send(400, "text/plain", "OTA write error");
-            return;
-        }
-    }
-    else if (upload.status == UPLOAD_FILE_END)
-    {
-        if (!Update.end(true))
-        {
-            debugPort->println("OTA end failed");
-            server->send(400, "text/plain", "OTA end failed");
-            return;
-        }
-
-        debugPort->println("Firmware update successful, rebooting...");
-        server->send(200, "text/plain", "Update successful. Rebooting...");
-        delay(1000);
-        ESP.restart();
-    }
-}
-
-void FSmanager::handleUpdateFileSystem()
-{
-    debugPort->println("FileSystem update requested");
-    
-    HTTPUpload& upload = server->upload();
-    static size_t fileSize = 0;
-    
-    if (upload.status == UPLOAD_FILE_START)
-    {
-        fileSize = 0;
-        debugPort->println("Starting filesystem update...");
-
-        // Platform-specific update begin
-        #ifdef ESP32
-            if (!Update.begin(UPDATE_SIZE_UNKNOWN, 0x290000))  // Use LittleFS partition address for ESP32
-        #else
-            if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000, U_FS))
-        #endif
-        {
-            debugPort->println("FileSystem update could not begin");
-            server->send(400, "text/plain", "FileSystem update could not begin");
-            return;
-        }
-    }
-    else if (upload.status == UPLOAD_FILE_WRITE)
-    {
-        fileSize += upload.currentSize;
-        debugPort->printf("Writing filesystem data... (%d bytes)\n", fileSize);
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
-        {
-            debugPort->println("FileSystem write error");
-            server->send(400, "text/plain", "FileSystem write error");
-            return;
-        }
-    }
-    else if (upload.status == UPLOAD_FILE_END)
-    {
-        if (!Update.end(true))
-        {
-            debugPort->println("FileSystem update end failed");
-            server->send(400, "text/plain", "FileSystem update end failed");
-            return;
-        }
-
-        debugPort->println("FileSystem update successful, rebooting...");
-        server->send(200, "text/plain", "FileSystem update successful. Rebooting...");
-        delay(1000);
-        ESP.restart();
     }
 }
 
@@ -527,9 +483,6 @@ void FSmanager::begin(Stream* debugOutput)
     }
 #endif
 
-    server->on("/fsm/", HTTP_GET, [this]()
-               { server->send(200, "text/html", htmlPage); });
-
     server->on("/fsm/filelist", HTTP_GET, [this]()
                { handleFileList(); });
 
@@ -537,8 +490,8 @@ void FSmanager::begin(Stream* debugOutput)
                { handleDelete(); });
 
     server->on("/fsm/upload", HTTP_POST, [this]()
-               { server->send(200); });
-    server->onFileUpload([this]()
+               { server->send(200); },
+               [this]()
                { handleUpload(); });
 
     server->on("/fsm/download", HTTP_GET, [this]()
@@ -550,22 +503,6 @@ void FSmanager::begin(Stream* debugOutput)
     server->on("/fsm/deleteFolder", HTTP_POST, [this]()
                { handleDeleteFolder(); });
 
-    server->on("/fsm/updateFirmware", HTTP_POST, [this]()
-               { server->send(200); });
-    server->onFileUpload([this]()
-               { 
-                 if (server->uri() == "/fsm/updateFirmware")
-                   handleUpdateFirmware(); 
-               });
-
-    server->on("/fsm/updateFS", HTTP_POST, [this]()
-               { server->send(200); });
-    server->onFileUpload([this]()
-               { 
-                 if (server->uri() == "/fsm/updateFS")
-                   handleUpdateFileSystem(); 
-               });
-
     server->on("/fsm/reboot", HTTP_POST, [this]()
                { handleReboot(); });
 
@@ -573,11 +510,4 @@ void FSmanager::begin(Stream* debugOutput)
                        { server->send(404, "text/plain", "Not Found"); });
 
     debugPort->println("FSmanager routes initialized.");
-    loadHtmlPage();
-}
-
-void FSmanager::addMenuItem(const String &name, std::function<void()> callback)
-{
-    menuItems.push_back({name, callback});
-    debugPort->printf("Menu item '%s' added.\n", name.c_str());
 }

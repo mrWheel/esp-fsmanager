@@ -2,6 +2,7 @@
 #define FSMANAGER_H
 
 #include <Arduino.h>
+#include <string>
 #ifdef ESP32
     #include <WebServer.h>
     #include <LittleFS.h>
@@ -12,13 +13,7 @@
     #include <LittleFS.h>
 #endif
 
-#ifdef ESP32
-    #include <Update.h>
-#else
-    #include <ESP8266HTTPUpdate.h>
-#endif
 #include <functional>
-#include <vector>
 
 #ifdef ESP32
   using WebServerClass = WebServer;
@@ -30,35 +25,25 @@ class FSmanager
 {
 private:
     WebServerClass *server;
-    String htmlPage;
-    String currentFolder;
+    std::string currentFolder;
+    std::string uploadFolder;  // Store folder path during upload
     Stream* debugPort;
-    struct MenuItem 
-    {
-        String name;
-        std::function<void()> callback;
-    };
-    std::vector<MenuItem> menuItems;
-
-    void loadHtmlPage();
+    File uploadFile;
     void handleFileList();
     void handleDelete();
     void handleUpload();
     void handleDownload();
     void handleCreateFolder();
     void handleDeleteFolder();
-    void handleUpdateFirmware();
-    void handleUpdateFileSystem();
     void handleReboot();
-    String formatSize(size_t bytes);
-    bool isSystemFile(const String &filename);
+    std::string formatSize(size_t bytes);
+    bool isSystemFile(const std::string &filename);
     size_t getTotalSpace();
     size_t getUsedSpace();
 
 public:
     FSmanager(WebServerClass &server);
     void begin(Stream* debugOutput = &Serial);
-    void addMenuItem(const String &name, std::function<void()> callback);
 };
 
 #endif // FSMANAGER_H
