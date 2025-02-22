@@ -22,28 +22,63 @@ FSmanager fsManager(server);
 
 
 // Cross-platform function to list all files on LittleFS
-void listAllFilesRecursive(File dir, int indentLevel) {
-  // List files in the current directory
-  File file = dir.openNextFile();
-  while (file) {
-      // Print indentation
-      for (int i = 0; i < indentLevel; i++) {
-          Serial.print("  ");  // Two spaces per indent level
+void listAllFilesRecursive(const String &path, int indentLevel) {
+  #if defined(ESP8266)
+      Dir dir = LittleFS.openDir(path);
+      while (dir.next()) 
+      {
+          // Print indentation
+          for (int i = 0; i < indentLevel; i++) {
+              Serial.print("  ");  // Two spaces per indent level
+          }
+          
+          String fileName = path + dir.fileName();
+          File file = LittleFS.open(fileName.c_str(), "r");
+          
+          if (!file) {
+              Serial.print("Failed to open: ");
+              Serial.println(fileName);
+              continue;
+          }
+          
+          if (file.isDirectory()) {
+              Serial.print("DIR : ");
+              Serial.println(fileName);
+              listAllFilesRecursive(fileName + "/", indentLevel + 1); // Recursively list subdirectory
+          } else {
+              Serial.print("FILE: ");
+              Serial.print(fileName);
+              Serial.print(" - SIZE: ");
+              Serial.println(file.size());
+          }
+          file.close();
       }
-
-      if (file.isDirectory()) {
-          Serial.print("DIR : ");
-          Serial.println(file.name());
-          listAllFilesRecursive(file, indentLevel + 1); // Recursively list files in subdirectories with increased indentation
-      } else {
-          Serial.print("FILE: ");
-          Serial.print(file.name());
-          Serial.print(" - SIZE: ");
-          Serial.println(file.size());
+  #elif defined(ESP32)
+      File dir = LittleFS.open(path);
+      if (!dir || !dir.isDirectory()) {
+          return;
       }
-      file = dir.openNextFile();
+      File file = dir.openNextFile();
+      while (file) {
+          for (int i = 0; i < indentLevel; i++) {
+              Serial.print("  ");
+          }
+  
+          if (file.isDirectory()) {
+              Serial.print("DIR : ");
+              Serial.println(file.name());
+              listAllFilesRecursive(file.name(), indentLevel + 1); // Recursively list subdirectory
+          } else {
+              Serial.print("FILE: ");
+              Serial.print(file.name());
+              Serial.print(" - SIZE: ");
+              Serial.println(file.size());
+          }
+          file = dir.openNextFile();
+      }
+  #endif
   }
-}
+  
 
 void listAllFiles() 
 {
@@ -51,14 +86,7 @@ void listAllFiles()
   
 #if defined(ESP8266)
   // For ESP8266
-  Dir dir = LittleFS.openDir("/");
-  while (dir.next()) 
-  {
-      Serial.print("FILE: ");
-      Serial.print(dir.fileName());
-      Serial.print(" - SIZE: ");
-      Serial.println(dir.fileSize());
-  }
+  listAllFilesRecursive("/", 0); // Start from root with no indentation
 #elif defined(ESP32)
   // For ESP32
   File root = LittleFS.open("/");
@@ -67,11 +95,9 @@ void listAllFiles()
       Serial.println("Failed to open directory or not a directory");
       return;
   }
-
-  listAllFilesRecursive(root, 0); // Start with no indentation
+  listAllFilesRecursive("/", 0); // Start with no indentation
 #endif
 }
-
 
 String getIndexHtml()
 {
