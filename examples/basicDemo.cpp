@@ -251,7 +251,7 @@ String getIndexHtml()
                 const isReadOnly = file.access === "r";
                 html += `<tr style="border-bottom: 1px solid #ddd;">
                   <td style="padding: 8px; cursor: pointer;" onclick="navigateToFolder('${fullPath}')">[DIR] ${file.name}</td>
-                  <td style="text-align: right; padding: 8px;">-</td>
+                  <td style="text-align: right; padding: 8px;">${file.size} files</td>
                   <td style="text-align: right; padding: 8px;">
                     ${isReadOnly ? 
                       `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px; background-color: #cccccc; cursor: not-allowed;" disabled>Locked</button>` : 
