@@ -248,11 +248,15 @@ String getIndexHtml()
             data.files.forEach(file => {
               if (file.isDir) {
                 const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
+                const isReadOnly = file.access === "r";
                 html += `<tr style="border-bottom: 1px solid #ddd;">
                   <td style="padding: 8px; cursor: pointer;" onclick="navigateToFolder('${fullPath}')">[DIR] ${file.name}</td>
                   <td style="text-align: right; padding: 8px;">-</td>
                   <td style="text-align: right; padding: 8px;">
-                    <button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFolder('${file.name}')">Delete</button>
+                    ${isReadOnly ? 
+                      `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px; background-color: #cccccc; cursor: not-allowed;" disabled>Locked</button>` : 
+                      `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFolder('${file.name}')">Delete</button>`
+                    }
                   </td>
                 </tr>`;
               }
@@ -261,12 +265,16 @@ String getIndexHtml()
             // Then show files
             data.files.forEach(file => {
               if (!file.isDir) {
+                const isReadOnly = file.access === "r";
                 html += `<tr style="border-bottom: 1px solid #ddd;">
                   <td style="padding: 8px;">[FILE] ${file.name}</td>
                   <td style="text-align: right; padding: 8px;">${formatBytes(file.size)}</td>
                   <td style="text-align: right; padding: 8px;">
                     <button class="button download" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="downloadFile('${file.name}')">Download</button>
-                    <button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFile('${file.name}')">Delete</button>
+                    ${isReadOnly ? 
+                      `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px; background-color: #cccccc; cursor: not-allowed;" disabled>Locked</button>` : 
+                      `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFile('${file.name}')">Delete</button>`
+                    }
                   </td>
                 </tr>`;
               }
