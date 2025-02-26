@@ -265,7 +265,9 @@ void FSmanager::handleFileList()
         std::string path = dirPath;
         if (path[0] != '/') path = "/" + path;
         
-        Dir dir = LittleFS.openDir(path);
+        // Convert std::string to const char*
+        const char* pathCStr = path.c_str();
+        Dir dir = LittleFS.openDir(pathCStr);
         while (dir.next()) {
             if (!dir.isDirectory()) {
                 count++;
@@ -275,7 +277,8 @@ void FSmanager::handleFileList()
     };
     
     // Process directories
-    Dir dir = LittleFS.openDir(folder);
+    const char* folderCStr = folder.c_str();
+    Dir dir = LittleFS.openDir(folderCStr);
     while (dir.next())
     {
         std::string name = dir.fileName().c_str();
@@ -298,7 +301,7 @@ void FSmanager::handleFileList()
     }
     
     // Second pass: List directories
-    dir = LittleFS.openDir(folder);
+    dir = LittleFS.openDir(folderCStr);
     while (dir.next())
     {
         if (dir.isDirectory())
@@ -320,8 +323,12 @@ void FSmanager::handleFileList()
             bool isEmpty = !dirHasFiles[fullPath];
             bool isReadOnly = !isEmpty; // Non-empty folders are read-only
             
+            // Extract just the directory name without leading or trailing slashes
+            // to match ESP32 format
+            std::string normalizedName = name;
+            
             json += "{\"name\":\"";
-            json += fullPath;
+            json += normalizedName; // Use normalized name without leading/trailing slashes
             json += "\",\"isDir\":true,\"size\":";
             json += std::to_string(dirFileCount[fullPath]); // Use file count as size
             json += ",\"access\":\"";
@@ -331,7 +338,7 @@ void FSmanager::handleFileList()
     }
 
     // Third pass: List files
-    dir = LittleFS.openDir(folder);
+    dir = LittleFS.openDir(folderCStr);
     while (dir.next())
     {
         if (!dir.isDirectory())
@@ -349,8 +356,11 @@ void FSmanager::handleFileList()
             // Check if it's a system file
             bool isReadOnly = isSystemFile(fullPath);
             
+            // Extract just the filename without leading slash to match ESP32 format
+            std::string normalizedName = name;
+            
             json += "{\"name\":\"";
-            json += fullPath;
+            json += normalizedName; // Use normalized name without leading slash
             json += "\",\"isDir\":false,\"size\":";
             json += std::to_string(dir.fileSize());
             json += ",\"access\":\"";
@@ -501,6 +511,7 @@ void FSmanager::handleCreateFolder()
 {
   if (!server->hasArg("name")) 
   {
+    debugPort->println("Error: Missing folder name parameter");
     server->send(400, "text/plain", "Missing folder name parameter");
     return;
   }
@@ -509,31 +520,160 @@ void FSmanager::handleCreateFolder()
   if (folderName[0] != '/') folderName = "/" + folderName;
   if (folderName[folderName.length()-1] != '/') folderName += "/";
   
-  debugPort->printf("Creating folder: %s\n", folderName.c_str());
+  debugPort->printf("Creating folder request: %s\n", folderName.c_str());
+  
+  // Check if the folder path has more than one level
+  int slashCount = 0;
+  for (char c : folderName) {
+    if (c == '/') slashCount++;
+  }
+  
+  // We expect exactly 2 slashes for a top-level folder (/folder1/)
+  // or 3 slashes for a one-level subfolder (/folder1/subfolder/)
+  if (slashCount > 3) {
+    debugPort->printf("Error: Only one level of subfolders is allowed. Slash count: %d\n", slashCount);
+    server->send(400, "text/plain", "Only one level of subfolders is allowed");
+    return;
+  }
   
 #ifdef ESP32
-  if (LittleFS.mkdir(folderName.c_str()))
+  // For one-level subfolder, create parent directory first if needed
+  if (slashCount == 3) {
+    // Extract parent folder path
+    size_t secondSlashPos = folderName.find('/', 1);
+    if (secondSlashPos != std::string::npos) {
+      std::string parentFolder = folderName.substr(0, secondSlashPos + 1);
+      debugPort->printf("Checking parent directory: %s\n", parentFolder.c_str());
+      
+      // Check if parent folder exists
+      File parentDir = LittleFS.open(parentFolder.c_str(), "r");
+      if (!parentDir || !parentDir.isDirectory()) {
+        debugPort->printf("Creating parent directory: %s\n", parentFolder.c_str());
+        if (!LittleFS.mkdir(parentFolder.c_str())) {
+          debugPort->println("Failed to create parent directory");
+          server->send(500, "text/plain", "Failed to create parent directory");
+          return;
+        }
+        debugPort->println("Parent directory created successfully");
+      }
+      if (parentDir) parentDir.close();
+    }
+  }
+  
+  // Create the final directory
+  debugPort->printf("Creating directory: %s\n", folderName.c_str());
+  
+  // Remove trailing slash for mkdir
+  std::string folderPath = folderName;
+  if (folderPath[folderPath.length()-1] == '/') {
+    folderPath = folderPath.substr(0, folderPath.length()-1);
+  }
+  
+  if (LittleFS.mkdir(folderPath.c_str()))
   {
+    debugPort->println("Folder created successfully");
     server->send(200, "text/plain", "Folder created successfully");
   }
   else
   {
+    debugPort->println("Failed to create folder");
     server->send(500, "text/plain", "Failed to create folder");
   }
 #else
-  // ESP8266 doesn't have a direct mkdir function, create a dummy file and delete it
-  std::string dummyFile = folderName + ".dummy";
+  // ESP8266 doesn't have a direct mkdir function
+  // We need to create the directory structure manually
+  
+  debugPort->println("ESP8266: Using alternative folder creation method");
+  
+  // For one-level subfolder, create parent directory first if needed
+  if (slashCount == 3) {
+    // Extract parent folder path
+    size_t secondSlashPos = folderName.find('/', 1);
+    if (secondSlashPos != std::string::npos) {
+      std::string parentFolder = folderName.substr(0, secondSlashPos + 1);
+      debugPort->printf("ESP8266: Checking parent directory: %s\n", parentFolder.c_str());
+      
+      // Try to open the parent directory to see if it exists
+      File parentDir = LittleFS.open(parentFolder.c_str(), "r");
+      if (!parentDir) {
+        debugPort->printf("ESP8266: Parent directory doesn't exist, creating: %s\n", parentFolder.c_str());
+        
+        // Create parent directory using dummy file technique
+        std::string dummyFile = parentFolder + "dummy.tmp";
+        debugPort->printf("ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
+        
+        File file = LittleFS.open(dummyFile.c_str(), "w");
+        if (!file) {
+          debugPort->println("ESP8266: Failed to create parent directory");
+          server->send(500, "text/plain", "Failed to create parent directory");
+          return;
+        }
+        
+        // Write something to the file to ensure it's created
+        file.println("dummy");
+        file.close();
+        
+        // Verify the file was created
+        File checkFile = LittleFS.open(dummyFile.c_str(), "r");
+        if (!checkFile) {
+          debugPort->println("ESP8266: Failed to verify dummy file creation");
+          server->send(500, "text/plain", "Failed to create parent directory");
+          return;
+        }
+        checkFile.close();
+        
+        debugPort->println("ESP8266: Parent directory created successfully");
+      } else {
+        parentDir.close();
+        debugPort->println("ESP8266: Parent directory already exists");
+      }
+    }
+  }
+  
+  // Check if the folder already exists
+  debugPort->printf("ESP8266: Checking if folder exists: %s\n", folderName.c_str());
+  File checkDir = LittleFS.open(folderName.c_str(), "r");
+  if (checkDir) {
+    checkDir.close();
+    debugPort->println("ESP8266: Folder already exists");
+    server->send(200, "text/plain", "Folder already exists");
+    return;
+  }
+  
+  // Create the final directory
+  debugPort->printf("ESP8266: Creating directory: %s\n", folderName.c_str());
+  
+  // Create a dummy file in the folder
+  std::string dummyFile = folderName + "dummy.tmp";
+  debugPort->printf("ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
+  
   File file = LittleFS.open(dummyFile.c_str(), "w");
-  if (!file)
-  {
+  if (!file) {
+    debugPort->println("ESP8266: Failed to create folder - could not create dummy file");
     server->send(500, "text/plain", "Failed to create folder");
     return;
   }
+  
+  // Write something to the file to ensure it's created
+  file.println("dummy");
   file.close();
-  LittleFS.remove(dummyFile.c_str());
+  
+  // Verify the file was created
+  File checkFile = LittleFS.open(dummyFile.c_str(), "r");
+  if (!checkFile) {
+    debugPort->println("ESP8266: Failed to verify dummy file creation");
+    server->send(500, "text/plain", "Failed to create folder");
+    return;
+  }
+  checkFile.close();
+  
+  // IMPORTANT: Do NOT delete the dummy file on ESP8266
+  // This ensures the folder continues to exist
+  debugPort->println("ESP8266: Folder created successfully");
   server->send(200, "text/plain", "Folder created successfully");
 #endif
 }
+
 
 void FSmanager::handleDeleteFolder()
 {
@@ -561,7 +701,8 @@ void FSmanager::handleDeleteFolder()
 #else
   // ESP8266 doesn't have a direct rmdir function
   // Check if folder is empty first
-  Dir dir = LittleFS.openDir(folderName);
+  const char* folderNameCStr = folderName.c_str();
+  Dir dir = LittleFS.openDir(folderNameCStr);
   if (dir.next())
   {
     server->send(400, "text/plain", "Cannot delete non-empty folder");
