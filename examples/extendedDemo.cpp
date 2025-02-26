@@ -127,18 +127,114 @@ void setupMainPage()
 }
 
 
+void uploadFileCallback()
+{
+  dm.setMessage("FSmanager: Upload File clicked!", 3);
+  document.getElementById('fileInput').click();
+}
+
+void createFolderCallback()
+{
+  dm.setMessage("FSmanager: Create Folder clicked!", 3);
+  document.getElementById('folderInput').style.display = 'block';
+}
+
+void deleteFolderCallback()
+{
+  dm.setMessage("FSmanager: Delete Folder clicked!", 3);
+  updateFolderList();
+  document.getElementById('folderList').style.display = 'block';
+}
+
+void exitFSmCallback()
+{
+  dm.setMessage("FSmanager: Exit clicked!", 3);
+  dm.activatePage("Main");
+}
+
 void setupFSmPage()
 {
-  dm.addPage("FSmPage", "<div style='font-size: 48px; text-align: center; font-weight: bold;'>fileList</div>");
+  const char *fsmPage = R"(
+    <div style='font-size: 24px; text-align: center; font-weight: bold;'>File System Manager</div>
+    
+    <!-- Menu -->
+    <div style='margin: 20px;'>
+      <button onclick='document.getElementById("fileInput").click()'>Upload File</button>
+      <button onclick='document.getElementById("folderInput").style.display="block"'>Create Folder</button>
+      <button onclick='updateFolderList();document.getElementById("folderList").style.display="block"'>Delete Folder</button>
+    </div>
+    
+    <!-- Hidden File Input -->
+    <input type='file' id='fileInput' style='display:none' onchange='uploadFile(this.files[0])'>
+    
+    <!-- Hidden Folder Input -->
+    <div id='folderInput' style='display:none'>
+      <input type='text' id='newFolderName' placeholder='Enter folder name'>
+      <button onclick='createFolder()'>Create</button>
+      <button onclick='this.parentElement.style.display="none"'>Cancel</button>
+    </div>
+    
+    <!-- Hidden Folder List -->
+    <div id='folderList' style='display:none'>
+      <select id='folderSelect'></select>
+      <button onclick='deleteSelectedFolder()'>Delete</button>
+      <button onclick='this.parentElement.style.display="none"'>Cancel</button>
+    </div>
+    
+    <!-- File List -->
+    <div id='fileList' style='margin: 20px;'>
+      <table style='width: 100%; border-collapse: collapse;'>
+        <thead>
+          <tr style='background-color: #f2f2f2;'>
+            <th style='padding: 8px; text-align: left; border: 1px solid #ddd;'>Name</th>
+            <th style='padding: 8px; text-align: left; border: 1px solid #ddd;'>Type</th>
+            <th style='padding: 8px; text-align: right; border: 1px solid #ddd;'>Size</th>
+            <th style='padding: 8px; text-align: center; border: 1px solid #ddd;'>Actions</th>
+          </tr>
+        </thead>
+        <tbody id='fileListBody'>
+        </tbody>
+      </table>
+    </div>
 
+    <div id='spaceInfo' style='margin: 20px; text-align: right;'>
+      <span id='usedSpace'>Used: 0 B</span> / <span id='totalSpace'>Total: 0 B</span>
+    </div>
+
+    <script>
+// Menu click handlers
+function handleUploadClick() {
+  document.getElementById('fileInput').click();
+}
+function handleCreateFolderClick() {
+  document.getElementById('folderInput').style.display='block';
+}
+function handleDeleteFolderClick() {
+  updateFolderList();
+  document.getElementById('folderList').style.display='block';
+}
+
+function updateFileList(){fetch('/fsm/filelist').then(response=>response.json()).then(data=>{const tbody=document.getElementById('fileListBody');tbody.innerHTML='';data.files.forEach(file=>{const row=document.createElement('tr');const deleteBtn=file.isDir?'<button onclick=\"deleteFolder(\\'' + file.name + '\\')\" style=\"padding:4px 8px;background-color:#f44336;color:white;border:none;border-radius:4px;cursor:pointer;\">Delete</button>':'<button onclick=\"deleteFile(\\'' + file.name + '\\')\" style=\"padding:4px 8px;background-color:#f44336;color:white;border:none;border-radius:4px;cursor:pointer;\">Delete</button>';const downloadBtn=!file.isDir?'<button onclick=\"downloadFile(\\'' + file.name + '\\')\" style=\"padding:4px 8px;background-color:#4CAF50;color:white;border:none;border-radius:4px;cursor:pointer;margin-right:5px;\">Download</button>':'';row.innerHTML='<td style=\"padding:8px;border:1px solid #ddd;\">' + file.name + '</td><td style=\"padding:8px;border:1px solid #ddd;\">' + (file.isDir?'Directory':'File') + '</td><td style=\"padding:8px;text-align:right;border:1px solid #ddd;\">' + formatSize(file.size) + '</td><td style=\"padding:8px;text-align:center;border:1px solid #ddd;\">' + downloadBtn + deleteBtn + '</td>';tbody.appendChild(row);});document.getElementById('usedSpace').textContent='Used: ' + formatSize(data.usedSpace);document.getElementById('totalSpace').textContent='Total: ' + formatSize(data.totalSpace);});}
+function formatSize(bytes){if(bytes<1024)return bytes + ' B';if(bytes<1024*1024)return(bytes/1024).toFixed(1) + ' KB';return(bytes/(1024*1024)).toFixed(1) + ' MB';}
+function deleteFile(name){if(!confirm('Delete file: ' + name + '?'))return;fetch('/fsm/delete',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'file=' + encodeURIComponent(name)}).then(()=>updateFileList());}
+function deleteFolder(name){if(!confirm('Delete folder: ' + name + '?'))return;fetch('/fsm/deleteFolder',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'folder=' + encodeURIComponent(name)}).then(()=>updateFileList());}
+function downloadFile(name){window.location.href='/fsm/download?file=' + encodeURIComponent(name);}
+function uploadFile(file){if(!file)return;const formData=new FormData();formData.append('file',file);fetch('/fsm/upload',{method:'POST',body:formData}).then(()=>updateFileList());}
+function createFolder(){const name=document.getElementById('newFolderName').value.trim();if(!name)return;fetch('/fsm/createFolder',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'name='+encodeURIComponent(name)}).then(()=>{document.getElementById('folderInput').style.display='none';document.getElementById('newFolderName').value='';updateFileList();});}
+function updateFolderList(){fetch('/fsm/filelist').then(response=>response.json()).then(data=>{const select=document.getElementById('folderSelect');select.innerHTML='';data.files.filter(f=>f.isDir).forEach(folder=>{const option=document.createElement('option');option.value=folder.name;option.textContent=folder.name;select.appendChild(option);});});}
+function deleteSelectedFolder(){const select=document.getElementById('folderSelect');const folder=select.value;if(!folder)return;deleteFolder(folder);document.getElementById('folderList').style.display='none';}
+updateFileList();setInterval(updateFileList,5000);
+    </script>)";
+
+  dm.addPage("FSmPage", fsmPage);
   dm.setPageTitle("FSmPage", "FileSystem Manager");
-  //-- Add Counter menu
+  
+  //-- Add FSmanager menu
   dm.addMenu("FSmPage", "FSmanager");
-  dm.addMenuItem("FSmPage", "FSmanager", "Upload File", startCounterCallback);
-  dm.addMenuItem("FSmPage", "FSmanager", "Create Folder",  stopCounterCallback);
-  dm.addMenuItem("FSmPage", "FSmanager", "Delete Folder", resetCounterCallback);
-  dm.addMenuItem("FSmPage", "FSmanager", "Exit",  exitCounterCallback);
-
+  dm.addMenuItem("FSmPage", "FSmanager", "Upload File", uploadFileCallback);
+  dm.addMenuItem("FSmPage", "FSmanager", "Create Folder", createFolderCallback);
+  dm.addMenuItem("FSmPage", "FSmanager", "Delete Folder", deleteFolderCallback);
+  dm.addMenuItem("FSmPage", "FSmanager", "Exit", exitFSmCallback);
 }
 
 void setupCounterPage()

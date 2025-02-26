@@ -1,3 +1,4 @@
+// FSmanager.h
 #ifndef FSMANAGER_H
 #define FSMANAGER_H
 
@@ -14,6 +15,8 @@
 #endif
 
 #include <functional>
+#include <set>
+#include <map>
 
 #ifdef ESP32
   using WebServerClass = WebServer;
@@ -29,6 +32,7 @@ private:
     std::string uploadFolder;  // Store folder path during upload
     Stream* debugPort;
     File uploadFile;
+    std::set<std::string> systemFiles;
     void handleFileList();
     void handleDelete();
     void handleUpload();
@@ -44,6 +48,7 @@ private:
 public:
     FSmanager(WebServerClass &server);
     void begin(Stream* debugOutput = &Serial);
+    void addSystemFile(const std::string &fileName);
 };
 
 #endif // FSMANAGER_H

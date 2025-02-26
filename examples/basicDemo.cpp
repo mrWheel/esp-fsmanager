@@ -412,6 +412,7 @@ void setup()
     listAllFiles();
 
     fsManager.begin(&Serial);
+    fsManager.addSystemFile("/index.html");
 
     server.on("/", HTTP_GET, []() {
         server.send(200, "text/html", getIndexHtml());
