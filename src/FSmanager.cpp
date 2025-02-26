@@ -464,8 +464,8 @@ void FSmanager::handleUpload()
   {
     std::string filename = std::string(upload.filename.c_str());
     
-    // Get the target folder from the request
-    uploadFolder = "/";
+    // Get the target folder from the request or use currentFolder if not specified
+    uploadFolder = currentFolder;  // Use currentFolder as default
     if (server->hasArg("folder"))
     {
       uploadFolder = std::string(server->arg("folder").c_str());
@@ -506,6 +506,7 @@ void FSmanager::handleUpload()
     }
   }
 }
+
 
 void FSmanager::handleCreateFolder()
 {
