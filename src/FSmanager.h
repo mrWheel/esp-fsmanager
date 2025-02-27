@@ -39,7 +39,6 @@ private:
     void handleDownload();
     void handleCreateFolder();
     void handleDeleteFolder();
-    void handleReboot();
     std::string formatSize(size_t bytes);
     bool isSystemFile(const std::string &filename);
     size_t getTotalSpace();
@@ -49,6 +48,7 @@ public:
     FSmanager(WebServerClass &server);
     void begin(Stream* debugOutput = &Serial);
     void addSystemFile(const std::string &fileName);
+    std::string getCurrentFolder();
 };
 
 #endif // FSMANAGER_H

@@ -142,34 +142,36 @@ String getIndexHtml()
     <div id="spaceInfo"></div>
   </div>
 
-  <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+  <div style="display: gap: 20px; margin-bottom: 20px;">
     <div>
-      <h2>Upload File</h2>
+      <h2 id="uploadHeading">Upload File</h2>
       <form id="uploadForm" action="/fsm/upload" method="post" enctype="multipart/form-data" onsubmit="handleUpload(event)">
         <input type="file" name="file" required>
         <button type="submit" class="button upload">Upload File</button>
       </form>
     </div>
 
-    <div>
+    <div id="folderInput">
       <h2>New Folder</h2>
-      <div style="display: flex; gap: 10px;">
+      <div style="display: gap: 10px;">
         <input type="text" id="foldername" placeholder="Enter folder name">
         <button class="button" id="createFolderBtn" onclick="createFolder()">Create</button>
       </div>
     </div>
   </div>
 
-  <div>
-    <h2>System</h2>
-    <button class="button reboot" onclick="reboot()">Reboot</button>
-  </div>
-  
+ 
   <div id="status"></div>
 
   <script>
     const statusDiv = document.getElementById('status');
     let currentPath = '/';
+    
+    // Function to update the upload heading with the current path
+    function updateUploadHeading() {
+      const uploadHeading = document.getElementById('uploadHeading');
+      uploadHeading.textContent = `Upload File to ${currentPath}`;
+    }
     
     function showStatus(message, isError = false) {
       statusDiv.textContent = message;
@@ -382,24 +384,34 @@ String getIndexHtml()
     function navigateToFolder(path) {
       currentPath = path;
       loadFileList(path);
-      // Disable folder creation if not in root
+      // Update the upload heading with the new path
+      updateUploadHeading();
+      
+      // Show/hide folder input based on current path
+      const folderInputDiv = document.getElementById('folderInput');
       const createBtn = document.getElementById('createFolderBtn');
       const folderInput = document.getElementById('foldername');
-      if (path !== '/') {
-        createBtn.disabled = true;
-        createBtn.style.opacity = '0.5';
-        folderInput.disabled = true;
-        folderInput.placeholder = 'Subfolders not allowed';
-      } else {
+      
+      if (path === '/') {
+        // In root directory - show folder input
+        folderInputDiv.style.display = 'block';
         createBtn.disabled = false;
-        createBtn.style.opacity = '1';
         folderInput.disabled = false;
         folderInput.placeholder = 'Enter folder name';
+      } else {
+        // Not in root directory - hide folder input
+        folderInputDiv.style.display = 'none';
+        createBtn.disabled = true;
+        folderInput.disabled = true;
       }
     }
 
     // Initial load
     loadFileList('/');
+    // Update the upload heading initially
+    updateUploadHeading();
+    // Set initial folder input visibility
+    document.getElementById('folderInput').style.display = currentPath === '/' ? 'block' : 'none';
     // Refresh every 5 seconds
     setInterval(() => loadFileList(currentPath), 5000);
   </script>
@@ -407,6 +419,8 @@ String getIndexHtml()
 </html>
         )rawstr";
 }
+
+
 
 void setup()
 {

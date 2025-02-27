@@ -91,14 +91,16 @@ void FSmanager::begin(Stream* debugOutput)
   }, [this]() { this->handleUpload(); });
   server->on("/fsm/createFolder", HTTP_POST, [this]() { this->handleCreateFolder(); });
   server->on("/fsm/deleteFolder", HTTP_POST, [this]() { this->handleDeleteFolder(); });
-  server->on("/fsm/reboot", HTTP_POST, [this]() { this->handleReboot(); });
   
   debugPort->println("FSmanager initialized");
 }
 
 void FSmanager::handleFileList()
 {
-    std::string json = "{\"files\":[";
+    debugPort->printf("currentFolder [%s]\n", currentFolder.c_str());
+    std::string json = "{\"currentFolder\":\"";
+    json += currentFolder;
+    json += "\",\"files\":[";
     std::string folder = "/";
     
     if (server->hasArg("folder"))
@@ -715,9 +717,8 @@ void FSmanager::handleDeleteFolder()
 #endif
 }
 
-void FSmanager::handleReboot()
+
+std::string FSmanager::getCurrentFolder()
 {
-  server->send(200, "text/plain", "Rebooting...");
-  delay(500);
-  ESP.restart();
+  return currentFolder;
 }
