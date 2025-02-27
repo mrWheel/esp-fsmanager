@@ -61,6 +61,24 @@ Example:
 fsManager.begin();  // Use default Serial for debug
 ```
 
+#### addSystemFile
+```ccp
+void addSystemFile(const std::string &fileName)
+```
+Adds `fileName` to a set of system files that cannot be deleted.
+
+Example:
+```
+fsManager.addSystemFile("index.html");
+```
+
+#### getCurrentFolder
+```cpp
+std::string getCurrentFolder();
+```
+returns `currentFolder`.
+- No parameters required
+
 ### HTTP Endpoints
 
 The library provides the following HTTP endpoints:
@@ -120,13 +138,6 @@ POST /fsm/deleteFolder
 Deletes an empty folder.
 - Form data: `folder=/EmptyFolder`
 - Note: Folder must be empty
-
-#### Reboot Device
-```
-POST /fsm/reboot
-```
-Reboots the ESP device.
-- No parameters required
 
 ## Basic Usage Example
 
