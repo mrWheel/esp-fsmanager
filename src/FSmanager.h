@@ -33,7 +33,7 @@ private:
     Stream* debugPort;
     File uploadFile;
     std::set<std::string> systemFiles;
-    bool lastUploadSuccess;    // Add this member variable to track upload success
+    bool lastUploadSuccess;
     size_t trackedUsedSpace;  // Track used space during upload
     void handleFileList();
     void handleDelete();
@@ -45,6 +45,7 @@ private:
     bool isSystemFile(const std::string &filename);
     size_t getTotalSpace();
     size_t getUsedSpace();
+    void handleCheckSpace();
 
 public:
     FSmanager(WebServerClass &server);

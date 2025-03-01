@@ -18,22 +18,52 @@ function showStatus(message, isError = false) {
 function handleUpload(event) {
   event.preventDefault();
   const form = event.target;
-  const formData = new FormData(form);
+  const fileInput = form.querySelector('input[type="file"]');
+  const file = fileInput.files[0];
   
-  // Add current folder to formData
-  formData.append('folder', currentPath);
+  if (!file) {
+    showStatus('Please select a file', true);
+    return;
+  }
   
-  fetch(form.action, {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => response.text())
-  .then(result => {
-    showStatus(result);
-    form.reset();
-    loadFileList();
-  })
-  .catch(error => showStatus('Upload failed: ' + error, true));
+  console.log("Selected file:", file.name, "Size:", file.size, "bytes");
+  
+  // Check if there's enough space before uploading
+  fetch('/fsm/checkSpace?size=' + file.size)
+    .then(response => {
+      if (!response.ok) {
+        return response.text().then(text => {
+          throw new Error(text || 'Not enough space');
+        });
+      }
+      return response.text();
+    })
+    .then(() => {
+      // If we get here, there's enough space, proceed with upload
+      const formData = new FormData(form);
+      
+      // Add current folder to formData
+      formData.append('folder', currentPath);
+      
+      return fetch(form.action, {
+        method: 'POST',
+        body: formData
+      });
+    })
+    .then(response => {
+      if (!response.ok) {
+        return response.text().then(text => {
+          throw new Error(text || 'Upload failed');
+        });
+      }
+      return response.text();
+    })
+    .then(result => {
+      showStatus(result);
+      form.reset();
+      loadFileList();
+    })
+    .catch(error => showStatus('Upload failed: ' + error, true));
 }
 
 function loadFileList(path = currentPath) {
