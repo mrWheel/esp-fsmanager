@@ -60,23 +60,64 @@ size_t FSmanager::getTotalSpace()
 
 size_t FSmanager::getUsedSpace()
 {
+  debugPort->println("Calculating used space...");
 #ifdef ESP32
   size_t usedBytes = 0;
-  File root = LittleFS.open("/", "r");
-  if (root && root.isDirectory()) {
-    File file = root.openNextFile();
-    while (file) {
-      usedBytes += file.size();
-      file = root.openNextFile();
+  
+  // Recursive function to calculate size of all files in a directory
+  std::function<void(const std::string&)> calculateDirSize = [&](const std::string& dirPath) {
+    debugPort->printf("currentFolder [%s]\n", dirPath.c_str());
+    File dir = LittleFS.open(dirPath.c_str(), "r");
+    if (dir && dir.isDirectory()) 
+    {
+      File file = dir.openNextFile();
+      while (file) 
+      {
+        if (file.isDirectory()) 
+        {
+          // Get directory name
+          String tempName = file.name();
+          std::string subDirName(tempName.c_str());
+          
+          // Ensure the path has a leading slash
+          std::string subDirPath;
+          if (subDirName[0] != '/') {
+            // If the directory name doesn't have a leading slash, construct the full path
+            subDirPath = dirPath;
+            if (subDirPath[subDirPath.length()-1] != '/') {
+              subDirPath += "/";
+            }
+            subDirPath += subDirName;
+          } else {
+            // If it already has a leading slash, use it as is
+            subDirPath = subDirName;
+          }
+          
+          // Recursively process subdirectory
+          calculateDirSize(subDirPath);
+        } 
+        else 
+        {
+          // Add file size to total
+          usedBytes += file.size();
+          debugPort->printf("File: %s, Size: %d -> totalUsed[%d]\n", file.name(), file.size(), usedBytes);
+        }
+        file = dir.openNextFile();
+      }
     }
-  }
+    dir.close();
+  };
+  
+  // Start recursive calculation from root
+  calculateDirSize("/");
   return usedBytes;
 #else
   FSInfo fs_info;
   LittleFS.info(fs_info);
   return fs_info.usedBytes;
 #endif
-}
+} // getUsedSpace()
+
 
 void FSmanager::begin(Stream* debugOutput)
 {

@@ -148,7 +148,7 @@ void setup()
     wifiManager.autoConnect("FSManager-AP");
 
     LittleFS.begin();
-    listAllFiles();
+    //--listAllFiles();
 
     fsManager.begin(&Serial);
     fsManager.addSystemFile("/index.html");
