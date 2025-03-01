@@ -122,7 +122,8 @@ function loadFileList(path = currentPath) {
 
       const usedSpace = formatBytes(data.usedSpace || 0);
       const totalSpace = formatBytes(data.totalSpace || 0);
-      spaceInfo.innerHTML = `<p>Storage: ${usedSpace} used of ${totalSpace}</p>`;
+      const freeSpace = formatBytes (data.totalSpace - data.usedSpace || 0);
+      spaceInfo.innerHTML = `<p>Storage: ${usedSpace} used of ${totalSpace} free (${freeSpace} available)</p>`;
     })
     .catch(error => showStatus('Failed to load file list: ' + error, true));
 }

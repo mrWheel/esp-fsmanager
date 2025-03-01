@@ -25,9 +25,6 @@ FSmanager fsManager(server);
 #include <LittleFS.h>
 
 // Recursive function to list all files and directories
-#include <LittleFS.h>
-
-// Recursive function to list all files and directories
 void listAllFilesRecursive(const char* dirname, uint8_t level) {
 #if defined(ESP8266)
     Dir dir = LittleFS.openDir(dirname);
