@@ -34,6 +34,7 @@ private:
     File uploadFile;
     std::set<std::string> systemFiles;
     bool lastUploadSuccess;
+    size_t trackedUsedSpace;  // Track used space during upload
     void handleFileList();
     void handleDelete();
     void handleUpload();
