@@ -122,14 +122,28 @@ size_t FSmanager::getUsedSpace()
 void FSmanager::begin(Stream* debugOutput)
 {
   debugPort = debugOutput;
+  lastUploadSuccess = true;  // Initialize the upload success flag
   
   // Register handlers for file operations
   server->on("/fsm/filelist", HTTP_GET, [this]() { this->handleFileList(); });
   server->on("/fsm/delete", HTTP_POST, [this]() { this->handleDelete(); });
   server->on("/fsm/download", HTTP_GET, [this]() { this->handleDownload(); });
+  
+  // Modified upload handler with error reporting
   server->on("/fsm/upload", HTTP_POST, [this]() { 
-    server->send(200, "text/plain", "File uploaded successfully");
-  }, [this]() { this->handleUpload(); });
+    // Check if upload was successful
+    if (this->lastUploadSuccess) {
+      server->send(200, "text/plain", "File uploaded successfully");
+    } else {
+      // Send error response
+      server->send(507, "text/plain", "Upload failed: Insufficient storage space");
+    }
+  }, [this]() { 
+    // Reset success flag before handling upload
+    this->lastUploadSuccess = true;
+    this->handleUpload(); 
+  });
+  
   server->on("/fsm/createFolder", HTTP_POST, [this]() { this->handleCreateFolder(); });
   server->on("/fsm/deleteFolder", HTTP_POST, [this]() { this->handleDeleteFolder(); });
   
@@ -523,13 +537,50 @@ void FSmanager::handleUpload()
     if (isSystemFile(filepath))
     {
       debugPort->println("Cannot overwrite system file");
+      lastUploadSuccess = false;
       return;
+    }
+    
+    // Calculate used space once at the start of upload
+    trackedUsedSpace = getUsedSpace();
+    
+    // Check Content-Length header to determine file size
+    if (server->hasHeader("Content-Length"))
+    {
+      String contentLengthStr = server->header("Content-Length");
+      size_t contentLength = contentLengthStr.toInt();
+      
+      // For multipart form data, the actual file size will be smaller than Content-Length
+      // because Content-Length includes form boundaries and other metadata
+      // As a conservative estimate, we'll assume the file is at least 75% of Content-Length
+      size_t estimatedFileSize = (contentLength * 3) / 4;
+      
+      // Get available space using the tracked value
+      size_t totalSpace = getTotalSpace();
+      size_t freeSpace = totalSpace - trackedUsedSpace;
+      
+      debugPort->printf("Upload file size (est): %zu bytes, Free space: %zu bytes\n", 
+                        estimatedFileSize, freeSpace);
+      
+      // Check if there's enough space (with a small buffer)
+      if (estimatedFileSize > freeSpace - 4096) // 4KB safety buffer
+      {
+        debugPort->println("Not enough space for upload");
+        lastUploadSuccess = false;
+        return; // This will prevent the file from being opened
+      }
+    }
+    else
+    {
+      debugPort->println("Warning: No Content-Length header found");
+      // If we can't determine the size, we'll still try the upload but monitor space
     }
     
     uploadFile = LittleFS.open(filepath.c_str(), "w");
     if (!uploadFile)
     {
       debugPort->println("Failed to open file for writing");
+      lastUploadSuccess = false;
       return;
     }
   }
@@ -537,7 +588,28 @@ void FSmanager::handleUpload()
   {
     if (uploadFile)
     {
+      // Use tracked space and add current chunk size
+      size_t totalSpace = getTotalSpace();
+      size_t freeSpace = totalSpace - trackedUsedSpace;
+      
+      // Ensure we have enough space for this chunk plus a small buffer
+      if (upload.currentSize > freeSpace - 4096) // 4KB safety buffer
+      {
+        debugPort->println("Out of space during upload");
+        uploadFile.close();
+        
+        // Get the current file path to delete it
+        std::string filepath = uploadFolder + std::string(upload.filename.c_str());
+        LittleFS.remove(filepath.c_str());
+        
+        debugPort->printf("Deleted partial file: %s\n", filepath.c_str());
+        lastUploadSuccess = false;
+        return;
+      }
+      
+      // Write the chunk and update tracked space
       uploadFile.write(upload.buf, upload.currentSize);
+      trackedUsedSpace += upload.currentSize;
     }
   }
   else if (upload.status == UPLOAD_FILE_END)
@@ -547,6 +619,24 @@ void FSmanager::handleUpload()
       uploadFile.close();
       debugPort->printf("Upload complete: %d bytes\n", upload.totalSize);
     }
+    else
+    {
+      lastUploadSuccess = false;
+    }
+  }
+  else if (upload.status == UPLOAD_FILE_ABORTED)
+  {
+    debugPort->println("Upload aborted");
+    if (uploadFile)
+    {
+      uploadFile.close();
+      
+      // Delete the partial file
+      std::string filepath = uploadFolder + std::string(upload.filename.c_str());
+      LittleFS.remove(filepath.c_str());
+      debugPort->printf("Deleted partial file: %s\n", filepath.c_str());
+    }
+    lastUploadSuccess = false;
   }
 }
 

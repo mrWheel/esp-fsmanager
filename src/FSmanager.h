@@ -33,6 +33,8 @@ private:
     Stream* debugPort;
     File uploadFile;
     std::set<std::string> systemFiles;
+    bool lastUploadSuccess;    // Add this member variable to track upload success
+    size_t trackedUsedSpace;  // Track used space during upload
     void handleFileList();
     void handleDelete();
     void handleUpload();
