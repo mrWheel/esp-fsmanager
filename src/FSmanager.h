@@ -33,6 +33,7 @@ private:
     Stream* debugPort;
     File uploadFile;
     std::set<std::string> systemFiles;
+    bool lastUploadSuccess;
     void handleFileList();
     void handleDelete();
     void handleUpload();
@@ -43,6 +44,7 @@ private:
     bool isSystemFile(const std::string &filename);
     size_t getTotalSpace();
     size_t getUsedSpace();
+    void handleCheckSpace();
 
 public:
     FSmanager(WebServerClass &server);

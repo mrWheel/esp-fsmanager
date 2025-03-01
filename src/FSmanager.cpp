@@ -66,7 +66,7 @@ size_t FSmanager::getUsedSpace()
   
   // Recursive function to calculate size of all files in a directory
   std::function<void(const std::string&)> calculateDirSize = [&](const std::string& dirPath) {
-    debugPort->printf("currentFolder [%s]\n", dirPath.c_str());
+    //-debug- debugPort->printf("currentFolder [%s]\n", dirPath.c_str());
     File dir = LittleFS.open(dirPath.c_str(), "r");
     if (dir && dir.isDirectory()) 
     {
@@ -100,7 +100,7 @@ size_t FSmanager::getUsedSpace()
         {
           // Add file size to total
           usedBytes += file.size();
-          debugPort->printf("File: %s, Size: %d -> totalUsed[%d]\n", file.name(), file.size(), usedBytes);
+          //-debug- debugPort->printf("File: %s, Size: %d -> totalUsed[%d]\n", file.name(), file.size(), usedBytes);
         }
         file = dir.openNextFile();
       }
@@ -122,23 +122,39 @@ size_t FSmanager::getUsedSpace()
 void FSmanager::begin(Stream* debugOutput)
 {
   debugPort = debugOutput;
+  lastUploadSuccess = true;  // Initialize to true
   
   // Register handlers for file operations
   server->on("/fsm/filelist", HTTP_GET, [this]() { this->handleFileList(); });
   server->on("/fsm/delete", HTTP_POST, [this]() { this->handleDelete(); });
   server->on("/fsm/download", HTTP_GET, [this]() { this->handleDownload(); });
+  server->on("/fsm/checkSpace", HTTP_GET, [this]() { this->handleCheckSpace(); });
+
+  // Modified upload handler with error reporting
   server->on("/fsm/upload", HTTP_POST, [this]() { 
-    server->send(200, "text/plain", "File uploaded successfully");
-  }, [this]() { this->handleUpload(); });
+    // Check if upload was successful
+    if (this->lastUploadSuccess) {
+      server->send(200, "text/plain", "File uploaded successfully");
+    } else {
+      // Send error response
+      server->send(507, "text/plain", "Upload failed: Insufficient storage space");
+    }
+  }, [this]() { 
+    // Reset success flag before handling upload
+    this->lastUploadSuccess = true;
+    this->handleUpload(); 
+  });
+  
   server->on("/fsm/createFolder", HTTP_POST, [this]() { this->handleCreateFolder(); });
   server->on("/fsm/deleteFolder", HTTP_POST, [this]() { this->handleDeleteFolder(); });
   
   debugPort->println("FSmanager initialized");
 }
 
+
 void FSmanager::handleFileList()
 {
-    debugPort->printf("currentFolder [%s]\n", currentFolder.c_str());
+    //-debug- debugPort->printf("currentFolder [%s]\n", currentFolder.c_str());
     std::string json = "{\"currentFolder\":\"";
     json += currentFolder;
     json += "\",\"files\":[";
@@ -157,7 +173,7 @@ void FSmanager::handleFileList()
         if (folderArg[folderArg.length()-1] != '/') folderArg += "/";
         folder = folderArg;
         currentFolder = folder;  // Update current folder
-        debugPort->printf("Listing folder: %s\n", folder.c_str());
+        //-debug- debugPort->printf("Listing folder: %s\n", folder.c_str());
     }
     
     File root = LittleFS.open(folder.c_str(), "r");
@@ -173,7 +189,7 @@ void FSmanager::handleFileList()
         return;
     }
 
-    debugPort->println("Files in folder:");
+    //-debug- debugPort->println("Files in folder:");
     
     bool first = true;
 
@@ -231,7 +247,7 @@ void FSmanager::handleFileList()
             dirFileCount[name] = fileCount;
             dirHasFiles[name] = (fileCount > 0);
             
-            debugPort->printf("  DIR: %s (contains %d files)\n", name.c_str(), fileCount);
+            //-debug- debugPort->printf("  DIR: %s (contains %d files)\n", name.c_str(), fileCount);
         }
         file = root.openNextFile();
     }
@@ -250,7 +266,7 @@ void FSmanager::handleFileList()
             if (!first) json += ",";
             first = false;
             
-            debugPort->printf("  DIR: %s\n", name.c_str());
+            //-debug- debugPort->printf("  DIR: %s\n", name.c_str());
             
             // Check if directory is empty or contains system files
             bool isEmpty = !dirHasFiles[name];
@@ -281,7 +297,7 @@ void FSmanager::handleFileList()
             if (!first) json += ",";
             first = false;
             
-            debugPort->printf("  FILE: %s (%d bytes)\n", name.c_str(), file.size());
+            //-debug- debugPort->printf("  FILE: %s (%d bytes)\n", name.c_str(), file.size());
             
             // Check if it's a system file
             bool isReadOnly = isSystemFile(name);
@@ -499,6 +515,30 @@ void FSmanager::handleDownload()
   file.close();
 }
 
+void FSmanager::handleCheckSpace()
+{
+  if (!server->hasArg("size")) 
+  {
+    server->send(400, "text/plain", "Missing size parameter");
+    return;
+  }
+  
+  size_t requestedSize = atoi(server->arg("size").c_str());
+  size_t totalSpace = getTotalSpace();
+  size_t usedSpace = getUsedSpace();
+  size_t availableSpace = totalSpace - usedSpace;
+  
+  debugPort->printf("Check space request: size=%zu, available=%zu\n", requestedSize, availableSpace);
+  
+  if (requestedSize > availableSpace)
+  {
+    server->send(413, "text/plain", "Not enough space");
+    return;
+  }
+  
+  server->send(200, "text/plain", "Space available");
+}
+
 void FSmanager::handleUpload()
 {
   HTTPUpload& upload = server->upload();
@@ -523,13 +563,22 @@ void FSmanager::handleUpload()
     if (isSystemFile(filepath))
     {
       debugPort->println("Cannot overwrite system file");
+      lastUploadSuccess = false;
       return;
     }
+    
+    // Check if there's enough space
+    size_t totalSpace = getTotalSpace();
+    size_t usedSpace = getUsedSpace();
+    size_t availableSpace = totalSpace - usedSpace;
+    
+    // We don't know the file size yet, but we'll check during the upload process
     
     uploadFile = LittleFS.open(filepath.c_str(), "w");
     if (!uploadFile)
     {
       debugPort->println("Failed to open file for writing");
+      lastUploadSuccess = false;
       return;
     }
   }
