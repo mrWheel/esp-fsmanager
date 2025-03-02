@@ -152,20 +152,22 @@ void setup()
 
     fsManager.begin(&Serial);
     fsManager.addSystemFile("/index.html");
-    fsManager.addSystemFile("/basicDemo.html");
-    fsManager.addSystemFile("/basicDemo.css");
-    fsManager.addSystemFile("/basicDemo.js");
+    fsManager.addSystemFile("/fancyFSM.html");
+    fsManager.addSystemFile("/fancyFSM.js");
+    fsManager.addSystemFile("/favicon.ico");
 
     server.on("/", HTTP_GET, []() {
-        server.send(200, "text/html", getDemoHtml("/basicDemo/basicDemo.html"));
+        server.send(200, "text/html", getDemoHtml("/fancyFSM/fancyFSM.html"));
     });
-    server.on("/basicDemo.js", HTTP_GET, []() {
-      handleFileRequest("/basicDemo/basicDemo.js");
+    server.on("/fancyFSM.js", HTTP_GET, []() {
+      handleFileRequest("/fancyFSM/fancyFSM.js");
     });
-    server.on("/basicDemo.css", HTTP_GET, []() {
-      handleFileRequest("/basicDemo/basicDemo.css");
+    server.on("/fancyFSM.js", HTTP_GET, []() {
+      handleFileRequest("/fancyFSM/fancyFSM.js");
     });
-
+    server.on("/favicon.ico", HTTP_GET, []() {
+      handleFileRequest("/fancyFSM/favicon.ico");
+    });
 
     server.begin();
     Serial.println("Webserver started!");

@@ -100,7 +100,7 @@ function loadFileList(path = currentPath) {
       const spaceInfo = document.getElementById('spaceInfo');
       let html = '<div style="margin-bottom: 10px;">';
       if (currentPath !== '/') {
-        html += `<button class="button" style="width: auto;" onclick="navigateToFolder('${getParentFolder(currentPath)}')">&#128316;</button>`;
+        html += `<button class="button" style="width: auto;" onclick="navigateToFolder('${getParentFolder(currentPath)}')">.. &#8617;</button>`;
         html += `<span style="margin-left: 10px;">Current path: ${currentPath}</span>`;
       }
       html += '</div>';
@@ -278,5 +278,3 @@ loadFileList('/');
 updateUploadHeading();
 // Set initial folder input visibility
 document.getElementById('folderInput').style.display = currentPath === '/' ? 'block' : 'none';
-// Refresh every 5 seconds
-setInterval(() => loadFileList(currentPath), 5000);

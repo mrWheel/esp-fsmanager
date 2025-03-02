@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FSManager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    <link rel="stylesheet" href="fancyFS.css">
+  </style>
+</head>
+<body>
+  <h1>FSManager</h1>
+
+  <div id="fileList">
+    <h2>Files</h2>
+    <div id="files"></div>
+    <div id="spaceInfo"></div>
+  </div>
+
+  <div style="display: gap: 20px; margin-bottom: 20px;">
+    <div>
+      <h2 id="uploadHeading">Upload File</h2>
+      <form id="uploadForm" action="/fsm/upload" method="post" enctype="multipart/form-data" onsubmit="handleUpload(event)">
+        <input type="file" name="file" required>
+        <button type="submit" class="button upload">Upload File</button>
+      </form>
+    </div>
+
+    <div id="folderInput">
+      <h2>New Folder</h2>
+      <div style="display: gap: 10px;">
+        <input type="text" id="foldername" placeholder="Enter folder name">
+        <button class="button" id="createFolderBtn" onclick="createFolder()">Create</button>
+      </div>
+    </div>
+  </div>
+
+ 
+  <div id="status"></div>
+
+  <script src="/fancyFSM.js"></script>
+</body>
+</html>
