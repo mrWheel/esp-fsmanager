@@ -135,7 +135,10 @@ function loadFileList(path = currentPath) {
               </span>
               <span class="FSM_size">${file.size} files</span>
               <span>
+              <!--
                 <button class="button download" onclick="navigateToFolder('${fullPath}')">Download</button>
+              -->
+                <button class="button download" disabled>-</button>
               </span>
               <span>
                 ${isReadOnly ? 
