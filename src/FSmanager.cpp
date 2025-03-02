@@ -37,16 +37,28 @@ void FSmanager::addSystemFile(const std::string &fileName)
 bool FSmanager::isSystemFile(const std::string &filename)
 {
     std::string fname = filename;
-    if (fname[0] == '/') fname = fname.substr(1);
     
-    // Check if the file is in the systemFiles set
+    // Remove leading slash if present
+    if (!fname.empty() && fname[0] == '/') fname = fname.substr(1);
+    
+    // Extract the filename part after the last '/'
+    size_t lastSlashPos = fname.find_last_of('/');
+    std::string baseFilename = (lastSlashPos != std::string::npos) ? fname.substr(lastSlashPos + 1) : fname;
+
+    // Check if the base filename is in the systemFiles set
+    if (systemFiles.find(baseFilename) != systemFiles.end())
+    {
+        return true;
+    }
+    
+    // Check if the full path (without leading slash) is in the systemFiles set
     if (systemFiles.find(fname) != systemFiles.end())
     {
         return true;
     }
     
     // Default system file
-    return (fname == "index.html");
+    return (baseFilename == "index.html");
 }
 
 size_t FSmanager::getTotalSpace()
@@ -558,14 +570,6 @@ void FSmanager::handleUpload()
     // Create the full path
     std::string filepath = uploadFolder + filename;
     debugPort->printf("Upload started: %s\n", filepath.c_str());
-    
-    // Check if it's a system file
-    if (isSystemFile(filepath))
-    {
-      debugPort->println("Cannot overwrite system file");
-      lastUploadSuccess = false;
-      return;
-    }
     
     // Check if there's enough space
     size_t totalSpace = getTotalSpace();

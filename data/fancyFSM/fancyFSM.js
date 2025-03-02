@@ -1,4 +1,11 @@
 
+//--------------------------------------------------
+//-- html unicodes to use in the code
+let folderIcon = '&#128193;';
+let fileIcon = '&#128196;';
+let folderUpIcon = '&#8617;';
+//--------------------------------------------------
+
 const statusDiv = document.getElementById('status');
 let currentPath = '/';
 
@@ -98,34 +105,45 @@ function loadFileList(path = currentPath) {
       }
       const filesDiv = document.getElementById('files');
       const spaceInfo = document.getElementById('spaceInfo');
-      let html = '<div style="margin-bottom: 10px;">';
-      if (currentPath !== '/') {
-        html += `<button class="button" style="width: auto;" onclick="navigateToFolder('${getParentFolder(currentPath)}')">.. &#8617;</button>`;
-        html += `<span style="margin-left: 10px;">Current path: ${currentPath}</span>`;
-      }
-      html += '</div>';
       
-      html += '<table style="width: 100%; border-collapse: collapse;">';
-      html += '<tr style="background-color: #f2f2f2;"><th style="text-align: left; padding: 8px;">Name</th><th style="text-align: right; padding: 8px;">Size</th><th style="text-align: right; padding: 8px;">Actions</th></tr>';
+      // Create the wrapper div for the file list
+      let html = '<div id="fsm_fileList" style="display: block;">';
+      
+      // Navigation and current path
+      if (currentPath !== '/') {
+        html += `<div style="margin-bottom: 10px;">
+          <button class="button" style="width: auto;" onclick="navigateToFolder('${getParentFolder(currentPath)}')">${folderUpIcon} ..</button>
+          <span style="margin-left: 10px;">Current path: ${currentPath}</span>
+        </div>`;
+      }
+      
+      // Start the file list with header
+      html += '<div class="FSM_file-list-header">Root</div>';
+      html += '<div class="FSM_file-list">';
       
       if (data.files.length === 0) {
-        html += '<tr><td colspan="3" style="text-align: center; padding: 20px;">Empty folder</td></tr>';
+        html += '<div class="FSM_file-item" style="text-align: center;">Empty folder</div>';
       } else {
         // First show folders
         data.files.forEach(file => {
           if (file.isDir) {
             const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
             const isReadOnly = file.access === "r";
-            html += `<tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 8px; cursor: pointer;" onclick="navigateToFolder('${fullPath}')">&#128193; ${file.name}</td>
-              <td style="text-align: right; padding: 8px;">${file.size} files</td>
-              <td style="text-align: right; padding: 8px;">
+            html += `<div class="FSM_file-item">
+              <span onclick="navigateToFolder('${fullPath}')" style="cursor: pointer;">
+                <span class="FSM_folder-icon">${folderIcon}</span> ${file.name}
+              </span>
+              <span class="FSM_size">${file.size} files</span>
+              <span>
+                <button class="button download" onclick="navigateToFolder('${fullPath}')">Download</button>
+              </span>
+              <span>
                 ${isReadOnly ? 
-                  `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px; background-color: #cccccc; cursor: not-allowed;" disabled>Locked</button>` : 
-                  `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFolder('${file.name}')">Delete</button>`
+                  `<button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button>` : 
+                  `<button class="button FSM_delete" onclick="deleteFolder('${file.name}')">Delete</button>`
                 }
-              </td>
-            </tr>`;
+              </span>
+            </div>`;
           }
         });
 
@@ -133,30 +151,48 @@ function loadFileList(path = currentPath) {
         data.files.forEach(file => {
           if (!file.isDir) {
             const isReadOnly = file.access === "r";
-            html += `<tr style="border-bottom: 1px solid #ddd;">
-              <td style="padding: 8px;">&#128196; ${file.name}</td>
-              <td style="text-align: right; padding: 8px;">${formatBytes(file.size)}</td>
-              <td style="text-align: right; padding: 8px;">
-                <button class="button download" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="downloadFile('${file.name}')">Download</button>
+            html += `<div class="FSM_file-item">
+              <span>
+                <span>${fileIcon}</span> ${file.name}
+              </span>
+              <span class="FSM_size">${formatBytes(file.size)}</span>
+              <span>
+                <button class="button download" onclick="downloadFile('${file.name}')">Download</button>
+              </span>
+              <span>
                 ${isReadOnly ? 
-                  `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px; background-color: #cccccc; cursor: not-allowed;" disabled>Locked</button>` : 
-                  `<button class="button delete" style="width: auto; padding: 5px 10px; margin: 2px;" onclick="deleteFile('${file.name}')">Delete</button>`
+                  `<button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button>` : 
+                  `<button class="button FSM_delete" onclick="deleteFile('${file.name}')">Delete</button>`
                 }
-              </td>
-            </tr>`;
+              </span>
+            </div>`;
           }
         });
       }
-      html += '</table>';
-      filesDiv.innerHTML = html;
-
+      
+      html += '</div>'; // Close FSM_file-list
+      
+      // Space info
       const usedSpace = formatBytes(data.usedSpace || 0);
       const totalSpace = formatBytes(data.totalSpace || 0);
-      const freeSpace = formatBytes (data.totalSpace - data.usedSpace || 0);
-      spaceInfo.innerHTML = `<p>Storage: ${usedSpace} used of ${totalSpace} free (${freeSpace} available)</p>`;
+      const freeSpace = formatBytes(data.totalSpace - data.usedSpace || 0);
+      html += `<div class="FSM_space-info">FileSystem uses ${usedSpace} of ${totalSpace} (${freeSpace} available)</div>`;
+      
+      html += '</div>'; // Close fsm_fileList wrapper
+      
+      filesDiv.innerHTML = html;
+      spaceInfo.innerHTML = ''; // Clear the space info since we're now including it in the file list
+            
+      // Show the FSM_content-wrapper div
+      const contentWrapper = document.querySelector('.FSM_content-wrapper');
+      if (contentWrapper) {
+        contentWrapper.style.display = 'block';
+      }
+
     })
     .catch(error => showStatus('Failed to load file list: ' + error, true));
 }
+
 
 function formatBytes(bytes) {
   if (bytes < 1024) return bytes + ' B';
