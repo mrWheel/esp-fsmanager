@@ -151,16 +151,16 @@ void setup()
     //--listAllFiles();
 
     fsManager.begin(&Serial);
-    fsManager.addSystemFile("/index.html");
-    fsManager.addSystemFile("/fancyFSM.html");
-    fsManager.addSystemFile("/fancyFSM.js");
-    fsManager.addSystemFile("/favicon.ico");
+    fsManager.addSystemFile("fancyFSM.html");
+    fsManager.addSystemFile("fancyFSM.css");
+    fsManager.addSystemFile("fancyFSM.js");
+    fsManager.addSystemFile("favicon.ico");
 
     server.on("/", HTTP_GET, []() {
         server.send(200, "text/html", getDemoHtml("/fancyFSM/fancyFSM.html"));
     });
-    server.on("/fancyFSM.js", HTTP_GET, []() {
-      handleFileRequest("/fancyFSM/fancyFSM.js");
+    server.on("/fancyFSM.css", HTTP_GET, []() {
+      handleFileRequest("/fancyFSM/fancyFSM.css");
     });
     server.on("/fancyFSM.js", HTTP_GET, []() {
       handleFileRequest("/fancyFSM/fancyFSM.js");
