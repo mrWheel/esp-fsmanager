@@ -637,14 +637,6 @@ void FSmanager::handleUpload()
     std::string filepath = uploadFolder + filename;
     debugPort->printf("Upload started: %s\n", filepath.c_str());
     
-    // Check if it's a system file
-    if (isSystemFile(filepath))
-    {
-      debugPort->println("Cannot overwrite system file");
-      lastUploadSuccess = false;
-      return;
-    }
-    
     // Check if there's enough space
     size_t totalSpace = getTotalSpace();
     size_t usedSpace = getUsedSpace();
