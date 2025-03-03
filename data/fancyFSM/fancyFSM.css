@@ -70,7 +70,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   
   /* Centering the content horizontally */
-  width: 85%;  /* Adjust the width as needed */
+  width: 800px%;  /* Adjust the width as needed */
   margin: 0 auto;  /* This centers the div horizontally */
   display: block;  /* Ensure the div behaves as a block element */
 }
@@ -78,6 +78,11 @@
 #bodyContent 
 {
     margin: 0 auto;
+}
+
+.FSM_h1
+{
+  margin-left: 50px; /* Moves the h1 element 20px to the right */
 }
 
 .FSM_footer 
