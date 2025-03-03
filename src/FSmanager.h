@@ -30,6 +30,7 @@ private:
     WebServerClass *server;
     std::string currentFolder;
     std::string uploadFolder;  // Store folder path during upload
+    std::string systemPath;    // New variable for system files path
     Stream* debugPort;
     File uploadFile;
     std::set<std::string> systemFiles;
@@ -50,6 +51,8 @@ private:
 public:
     FSmanager(WebServerClass &server);
     void begin(Stream* debugOutput = &Serial);
+    void setSystemFilePath(const std::string &path);
+    std::string getSystemFilePath() const;
     void addSystemFile(const std::string &fileName);
     std::string getCurrentFolder();
 };

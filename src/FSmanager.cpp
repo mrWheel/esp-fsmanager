@@ -27,39 +27,102 @@ std::string FSmanager::formatSize(size_t bytes)
     return std::string(buffer);
 }
 
+
+void FSmanager::setSystemFilePath(const std::string &path)
+{
+  systemPath = path;
+  if (!systemPath.empty() && systemPath.back() != '/') 
+  {
+    systemPath += '/';
+  }
+}
+
+
 void FSmanager::addSystemFile(const std::string &fileName)
 {
-    std::string fname = fileName;
-    if (fname[0] == '/') fname = fname.substr(1);
-    systemFiles.insert(fname);
+  std::string fName = fileName;
+  std::string fullName;
+
+  debugPort->printf("addSystemFile(): Adding (bare) system file: [%s]\n", fName.c_str());
+  // Ensure fileName starts with '/'
+  if (!fName.empty() && fName[0] != '/')
+  {
+    fName.insert(0, 1, '/');
+  }
+
+  // Use systemPath if it's set
+  if (!systemPath.empty()) 
+  {
+    fullName = systemPath;
+    
+    // Remove trailing '/' from systemPath if present
+    if (!fullName.empty() && fullName.back() == '/')
+    {
+      fullName.pop_back();
+    }
+    
+    fullName += fName;
+  }  
+  else 
+  {
+    fullName = fName;
+  }
+
+  // Ensure fname starts with '/'
+  if (!fullName.empty() && fullName[0] != '/')
+  {
+    fullName.insert(0, 1, '/');
+  }
+
+  debugPort->printf("addSystemFile(): Adding system file: [%s]\n", fullName.c_str());
+  systemFiles.insert(fullName);
+
+} // addSystemFile()
+
+std::string FSmanager::getSystemFilePath() const
+{
+  return systemPath;
 }
 
 bool FSmanager::isSystemFile(const std::string &filename)
 {
     std::string fname = filename;
-    
-    // Remove leading slash if present
-    if (!fname.empty() && fname[0] == '/') fname = fname.substr(1);
-    
-    // Extract the filename part after the last '/'
-    size_t lastSlashPos = fname.find_last_of('/');
-    std::string baseFilename = (lastSlashPos != std::string::npos) ? fname.substr(lastSlashPos + 1) : fname;
-
-    // Check if the base filename is in the systemFiles set
-    if (systemFiles.find(baseFilename) != systemFiles.end())
+    debugPort->println("Listing system files:");
+  
+    for (const auto &file : systemFiles)
     {
-        return true;
+      debugPort->printf("  %s\n", file.c_str());
     }
-    
-    // Check if the full path (without leading slash) is in the systemFiles set
+  
+    debugPort->printf("isSystemFile(): Checking system file: [%s]\n", fname.c_str());
+    //if (fname[0] == '/') fname = fname.substr(1);
+    /**
+    // Use systemPath if it's set
+    if (!systemPath.empty()) 
+    {
+      fname = systemPath + fname;
+      
+      // Remove trailing '/' from systemPath if present
+  //  if (!fname.empty() && fname.back() == '/')
+  //  {
+  //    fname.pop_back();
+    }
+    else
+    {    
+      fname += filename;
+    }
+    **/
+    debugPort->printf("isSystemFile(): Checking complete file: [%s] (after skip '/')\n", fname.c_str());
+    // Check if the file is in the systemFiles set
     if (systemFiles.find(fname) != systemFiles.end())
     {
         return true;
     }
     
     // Default system file
-    return (baseFilename == "index.html");
-}
+    return (fname == "index.html");
+
+} // isSystemFile()isSystemFile()
 
 size_t FSmanager::getTotalSpace()
 {
@@ -166,290 +229,293 @@ void FSmanager::begin(Stream* debugOutput)
 
 void FSmanager::handleFileList()
 {
-    //-debug- debugPort->printf("currentFolder [%s]\n", currentFolder.c_str());
-    std::string json = "{\"currentFolder\":\"";
-    json += currentFolder;
-    json += "\",\"files\":[";
-    std::string folder = "/";
-    
-    if (server->hasArg("folder"))
+  //-debug- debugPort->printf("currentFolder [%s]\n", currentFolder.c_str());
+  std::string json = "{\"currentFolder\":\"";
+  json += currentFolder;
+  json += "\",\"files\":[";
+  std::string folder = "/";
+  
+  if (server->hasArg("folder"))
+  {
+    std::string folderArg = std::string(server->arg("folder").c_str());
+    // Remove any double slashes and ensure proper formatting
+    size_t pos;
+    while ((pos = folderArg.find("//")) != std::string::npos)
     {
-        std::string folderArg = std::string(server->arg("folder").c_str());
-        // Remove any double slashes and ensure proper formatting
-        size_t pos;
-        while ((pos = folderArg.find("//")) != std::string::npos)
-        {
-            folderArg.replace(pos, 2, "/");
-        }
-        if (folderArg[0] != '/') folderArg = "/" + folderArg;
-        if (folderArg[folderArg.length()-1] != '/') folderArg += "/";
-        folder = folderArg;
-        currentFolder = folder;  // Update current folder
-        //-debug- debugPort->printf("Listing folder: %s\n", folder.c_str());
+      folderArg.replace(pos, 2, "/");
     }
-    
-    File root = LittleFS.open(folder.c_str(), "r");
-    if (!root)
-    {
-        server->send(400, "application/json", "{\"error\":\"Invalid folder\"}");
-        return;
-    }
-
-    if (!root.isDirectory())
-    {
-        server->send(400, "application/json", "{\"error\":\"Not a directory\"}");
-        return;
-    }
-
-    //-debug- debugPort->println("Files in folder:");
-    
-    bool first = true;
-
+    if (folderArg[0] != '/') folderArg = "/" + folderArg;
+    if (folderArg[folderArg.length()-1] != '/') folderArg += "/";
+    folder = folderArg;
+    currentFolder = folder;  // Update current folder
+    //-debug- debugPort->printf("Listing folder: %s\n", folder.c_str());
+  }
+  
 #ifdef ESP32
-    // First pass: Count files in each directory
-    std::map<std::string, bool> dirHasFiles;
-    std::map<std::string, int> dirFileCount;
-    
-    // Function to count files in a directory
-    std::function<int(const std::string&)> countFilesInDir = [&](const std::string& dirPath) -> int {
-        int count = 0;
-        // Ensure path starts with a slash
-        std::string path = dirPath;
-        if (path[0] != '/') path = "/" + path;
-        
-        File dir = LittleFS.open(path.c_str(), "r");
-        if (dir && dir.isDirectory()) {
-            File file = dir.openNextFile();
-            while (file) {
-                if (!file.isDirectory()) {
-                    count++;
-                }
-                file = dir.openNextFile();
-            }
-        }
-        return count;
-    };
-    
-    // Process directories and files
-    File file = root.openNextFile();
-    while (file)
-    {
-        String tempName = file.name();
-        std::string name(tempName.c_str());
-        
-        if (file.isDirectory())
-        {
-            // Ensure directory path is properly formatted
-            std::string dirPath = folder;
-            if (dirPath[dirPath.length()-1] != '/') dirPath += "/";
-            
-            // Extract just the directory name from the full path
-            std::string dirName = name;
-            size_t lastSlash = dirName.rfind('/');
-            if (lastSlash != std::string::npos) {
-                dirName = dirName.substr(lastSlash + 1);
-            }
-            
-            // Combine folder and directory name
-            std::string fullPath = dirPath + dirName;
-            if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
-            
-            // Count files in this directory
-            int fileCount = countFilesInDir(fullPath);
-            dirFileCount[name] = fileCount;
-            dirHasFiles[name] = (fileCount > 0);
-            
-            //-debug- debugPort->printf("  DIR: %s (contains %d files)\n", name.c_str(), fileCount);
-        }
-        file = root.openNextFile();
-    }
-    
-    // Second pass: List directories
-    root.close();
-    root = LittleFS.open(folder.c_str(), "r");
-    file = root.openNextFile();
-    while (file)
-    {
-        String tempName = file.name();
-        std::string name(tempName.c_str());
-        
-        if (file.isDirectory())
-        {
-            if (!first) json += ",";
-            first = false;
-            
-            //-debug- debugPort->printf("  DIR: %s\n", name.c_str());
-            
-            // Check if directory is empty or contains system files
-            bool isEmpty = !dirHasFiles[name];
-            bool isReadOnly = !isEmpty; // Non-empty folders are read-only
-            
-            json += "{\"name\":\"";
-            json += name;
-            json += "\",\"isDir\":true,\"size\":";
-            json += std::to_string(dirFileCount[name]); // Use file count as size
-            json += ",\"access\":\"";
-            json += isReadOnly ? "r" : "w";
-            json += "\"}";
-        }
-        file = root.openNextFile();
-    }
+  File root = LittleFS.open(folder.c_str(), "r");
+  if (!root)
+  {
+    server->send(400, "application/json", "{\"error\":\"Invalid folder\"}");
+    return;
+  }
 
-    // Third pass: List files
-    root.close();
-    root = LittleFS.open(folder.c_str(), "r");
-    file = root.openNextFile();
-    while (file)
-    {
-        String tempName = file.name();
-        std::string name(tempName.c_str());
-        
-        if (!file.isDirectory())
-        {
-            if (!first) json += ",";
-            first = false;
-            
-            //-debug- debugPort->printf("  FILE: %s (%d bytes)\n", name.c_str(), file.size());
-            
-            // Check if it's a system file
-            bool isReadOnly = isSystemFile(name);
-            
-            json += "{\"name\":\"";
-            json += name;
-            json += "\",\"isDir\":false,\"size\":";
-            json += std::to_string(file.size());
-            json += ",\"access\":\"";
-            json += isReadOnly ? "r" : "w";
-            json += "\"}";
+  if (!root.isDirectory())
+  {
+    server->send(400, "application/json", "{\"error\":\"Not a directory\"}");
+    return;
+  }
+#else
+  // For ESP8266, check if the folder exists
+  if (!LittleFS.exists(folder.c_str()))
+  {
+    server->send(400, "application/json", "{\"error\":\"Invalid folder\"}");
+    return;
+  }
+  
+  // On ESP8266, we can't directly check if it's a directory
+  // We'll assume it's a directory if it exists, since we're using it as a directory path
+  // If it's not actually a directory, the subsequent operations will just not find any files
+#endif
+
+  //-debug- debugPort->println("Files in folder:");
+  
+  bool first = true;
+
+  // First pass: Count files in each directory
+  std::map<std::string, bool> dirHasFiles;
+  std::map<std::string, int> dirFileCount;
+  
+  // Function to count files in a directory
+  std::function<int(const std::string&)> countFilesInDir = [&](const std::string& dirPath) -> int {
+    int count = 0;
+    // Ensure path starts with a slash
+    std::string path = dirPath;
+    if (path[0] != '/') path = "/" + path;
+    
+#ifdef ESP32
+    File dir = LittleFS.open(path.c_str(), "r");
+    if (dir && dir.isDirectory()) {
+      File file = dir.openNextFile();
+      while (file) {
+        if (!file.isDirectory()) {
+          count++;
         }
-        file = root.openNextFile();
+        file = dir.openNextFile();
+      }
     }
 #else
-    // First pass: Count files in each directory
-    std::map<std::string, bool> dirHasFiles;
-    std::map<std::string, int> dirFileCount;
-    
-    // Function to count files in a directory
-    std::function<int(const std::string&)> countFilesInDir = [&](const std::string& dirPath) -> int {
-        int count = 0;
-        // Ensure path starts with a slash
-        std::string path = dirPath;
-        if (path[0] != '/') path = "/" + path;
-        
-        // Convert std::string to const char*
-        const char* pathCStr = path.c_str();
-        Dir dir = LittleFS.openDir(pathCStr);
-        while (dir.next()) {
-            if (!dir.isDirectory()) {
-                count++;
-            }
-        }
-        return count;
-    };
-    
-    // Process directories
-    const char* folderCStr = folder.c_str();
-    Dir dir = LittleFS.openDir(folderCStr);
-    while (dir.next())
-    {
-        std::string name = dir.fileName().c_str();
-        
-        if (dir.isDirectory())
-        {
-            // Ensure the path is properly formatted
-            std::string fullPath = folder;
-            if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
-            fullPath += name;
-            if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
-            
-            // Count files in this directory
-            int fileCount = countFilesInDir(fullPath);
-            dirFileCount[fullPath] = fileCount;
-            dirHasFiles[fullPath] = (fileCount > 0);
-            
-            debugPort->printf("  DIR: %s (contains %d files)\n", fullPath.c_str(), fileCount);
-        }
-    }
-    
-    // Second pass: List directories
-    dir = LittleFS.openDir(folderCStr);
-    while (dir.next())
-    {
-        if (dir.isDirectory())
-        {
-            if (!first) json += ",";
-            first = false;
-            
-            std::string name = dir.fileName().c_str();
-            
-            // Ensure the path is properly formatted
-            std::string fullPath = folder;
-            if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
-            fullPath += name;
-            if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
-            
-            debugPort->printf("  DIR: %s\n", fullPath.c_str());
-            
-            // Check if directory is empty
-            bool isEmpty = !dirHasFiles[fullPath];
-            bool isReadOnly = !isEmpty; // Non-empty folders are read-only
-            
-            // Extract just the directory name without leading or trailing slashes
-            // to match ESP32 format
-            std::string normalizedName = name;
-            
-            json += "{\"name\":\"";
-            json += normalizedName; // Use normalized name without leading/trailing slashes
-            json += "\",\"isDir\":true,\"size\":";
-            json += std::to_string(dirFileCount[fullPath]); // Use file count as size
-            json += ",\"access\":\"";
-            json += isReadOnly ? "r" : "w";
-            json += "\"}";
-        }
-    }
-
-    // Third pass: List files
-    dir = LittleFS.openDir(folderCStr);
-    while (dir.next())
-    {
-        if (!dir.isDirectory())
-        {
-            if (!first) json += ",";
-            first = false;
-            
-            std::string name = dir.fileName().c_str();
-            std::string fullPath = folder;
-            if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
-            fullPath += name;
-            
-            debugPort->printf("  FILE: %s (%d bytes)\n", fullPath.c_str(), dir.fileSize());
-            
-            // Check if it's a system file
-            bool isReadOnly = isSystemFile(fullPath);
-            
-            // Extract just the filename without leading slash to match ESP32 format
-            std::string normalizedName = name;
-            
-            json += "{\"name\":\"";
-            json += normalizedName; // Use normalized name without leading slash
-            json += "\",\"isDir\":false,\"size\":";
-            json += std::to_string(dir.fileSize());
-            json += ",\"access\":\"";
-            json += isReadOnly ? "r" : "w";
-            json += "\"}";
-        }
+    Dir dir = LittleFS.openDir(path.c_str());
+    while (dir.next()) {
+      if (!dir.isDirectory()) {
+        count++;
+      }
     }
 #endif
+    return count;
+  };
+  
+  // Process directories and files
+#ifdef ESP32
+  File file = root.openNextFile();
+  while (file)
+  {
+    String tempName = file.name();
+    std::string name(tempName.c_str());
     
-    json += "],";
-    json += "\"totalSpace\":";
-    json += std::to_string(getTotalSpace());
-    json += ",\"usedSpace\":";
-    json += std::to_string(getUsedSpace());
-    json += "}";
+    if (file.isDirectory())
+    {
+      // Ensure directory path is properly formatted
+      std::string dirPath = folder;
+      if (dirPath[dirPath.length()-1] != '/') dirPath += "/";
+      
+      // Extract just the directory name from the full path
+      std::string dirName = name;
+      size_t lastSlash = dirName.rfind('/');
+      if (lastSlash != std::string::npos) {
+        dirName = dirName.substr(lastSlash + 1);
+      }
+      
+      // Combine folder and directory name
+      std::string fullPath = dirPath + dirName;
+      if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
+      
+      // Count files in this directory
+      int fileCount = countFilesInDir(fullPath);
+      dirFileCount[name] = fileCount;
+      dirHasFiles[name] = (fileCount > 0);
+      
+      //-debug- debugPort->printf("  DIR: %s (contains %d files)\n", name.c_str(), fileCount);
+    }
+    file = root.openNextFile();
+  }
+#else
+  Dir dir = LittleFS.openDir(folder.c_str());
+  while (dir.next())
+  {
+    std::string name = dir.fileName().c_str();
     
-    server->send(200, "application/json", json.c_str());
-}
+    if (dir.isDirectory())
+    {
+      // Ensure directory path is properly formatted
+      std::string dirPath = folder;
+      if (dirPath[dirPath.length()-1] != '/') dirPath += "/";
+      
+      // Combine folder and directory name
+      std::string fullPath = dirPath + name;
+      if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
+      
+      // Count files in this directory
+      int fileCount = countFilesInDir(fullPath);
+      dirFileCount[fullPath] = fileCount;
+      dirHasFiles[fullPath] = (fileCount > 0);
+      
+      //-debug- debugPort->printf("  DIR: %s (contains %d files)\n", fullPath.c_str(), fileCount);
+    }
+  }
+#endif
+  
+  // Second pass: List directories
+#ifdef ESP32
+  root.close();
+  root = LittleFS.open(folder.c_str(), "r");
+  file = root.openNextFile();
+  while (file)
+  {
+    String tempName = file.name();
+    std::string name(tempName.c_str());
+    
+    if (file.isDirectory())
+    {
+      if (!first) json += ",";
+      first = false;
+      
+      //-debug- debugPort->printf("  DIR: %s\n", name.c_str());
+      
+      // Check if directory is empty or contains system files
+      bool isEmpty = !dirHasFiles[name];
+      bool isReadOnly = !isEmpty; // Non-empty folders are read-only
+      
+      json += "{\"name\":\"";
+      json += name;
+      json += "\",\"isDir\":true,\"size\":";
+      json += std::to_string(dirFileCount[name]); // Use file count as size
+      json += ",\"access\":\"";
+      json += isReadOnly ? "r" : "w";
+      json += "\"}";
+    }
+    file = root.openNextFile();
+  }
+#else
+  dir = LittleFS.openDir(folder.c_str());
+  while (dir.next())
+  {
+    if (dir.isDirectory())
+    {
+      if (!first) json += ",";
+      first = false;
+      
+      std::string name = dir.fileName().c_str();
+      
+      // Ensure the path is properly formatted
+      std::string fullPath = folder;
+      if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
+      fullPath += name;
+      if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
+      
+      //-debug- debugPort->printf("  DIR: %s\n", fullPath.c_str());
+      
+      // Check if directory is empty
+      bool isEmpty = !dirHasFiles[fullPath];
+      bool isReadOnly = !isEmpty; // Non-empty folders are read-only
+      
+      json += "{\"name\":\"";
+      json += name; // Use normalized name without leading/trailing slashes
+      json += "\",\"isDir\":true,\"size\":";
+      json += std::to_string(dirFileCount[fullPath]); // Use file count as size
+      json += ",\"access\":\"";
+      json += isReadOnly ? "r" : "w";
+      json += "\"}";
+    }
+  }
+#endif
+
+  // Third pass: List files
+#ifdef ESP32
+  root.close();
+  root = LittleFS.open(folder.c_str(), "r");
+  file = root.openNextFile();
+  while (file)
+  {
+    String tempName = file.name();
+    std::string name(tempName.c_str());
+    
+    if (!file.isDirectory())
+    {
+      if (!first) json += ",";
+      first = false;
+      
+      //-debug- debugPort->printf("  FILE: %s (%d bytes)\n", name.c_str(), file.size());
+      // Construct the full path by appending name to folder
+      std::string fullPath = folder;
+      if (fullPath.back() != '/') fullPath += "/";
+      fullPath += name;
+      debugPort->printf("  isSyetemFile(%s)\n", fullPath.c_str());
+      // Check if it's a system file
+      bool isReadOnly = isSystemFile(fullPath);
+      
+      json += "{\"name\":\"";
+      json += name;
+      json += "\",\"isDir\":false,\"size\":";
+      json += std::to_string(file.size());
+      json += ",\"access\":\"";
+      json += isReadOnly ? "r" : "w";
+      json += "\"}";
+    }
+    file = root.openNextFile();
+  }
+#else
+  dir = LittleFS.openDir(folder.c_str());
+  while (dir.next())
+  {
+    if (!dir.isDirectory())
+    {
+      if (!first) json += ",";
+      first = false;
+      
+      std::string name = dir.fileName().c_str();
+      
+      // Construct the full path by appending name to folder
+      std::string fullPath = folder;
+      if (fullPath.back() != '/') fullPath += "/";
+      fullPath += name;
+      
+      debugPort->printf("  FILE: %s (%d bytes)\n", fullPath.c_str(), dir.fileSize());
+      debugPort->printf("  isSyetemFile(%s)\n", fullPath.c_str());
+      
+      // Check if it's a system file
+      bool isReadOnly = isSystemFile(fullPath);
+      
+      json += "{\"name\":\"";
+      json += name; // Use normalized name without leading slash
+      json += "\",\"isDir\":false,\"size\":";
+      json += std::to_string(dir.fileSize());
+      json += ",\"access\":\"";
+      json += isReadOnly ? "r" : "w";
+      json += "\"}";
+    }
+  }
+#endif
+  
+  json += "],";
+  json += "\"totalSpace\":";
+  json += std::to_string(getTotalSpace());
+  json += ",\"usedSpace\":";
+  json += std::to_string(getUsedSpace());
+  json += "}";
+  
+  server->send(200, "application/json", json.c_str());
+  
+} // handleFileList()
 
 
 void FSmanager::handleDelete()
