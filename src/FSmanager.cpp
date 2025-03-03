@@ -27,18 +27,92 @@ std::string FSmanager::formatSize(size_t bytes)
     return std::string(buffer);
 }
 
+
+void FSmanager::setSystemFilePath(const std::string &path)
+{
+  systemPath = path;
+  if (!systemPath.empty() && systemPath.back() != '/') 
+  {
+    systemPath += '/';
+  }
+}
+
+
 void FSmanager::addSystemFile(const std::string &fileName)
 {
-    std::string fname = fileName;
-    if (fname[0] == '/') fname = fname.substr(1);
-    systemFiles.insert(fname);
+  std::string fName = fileName;
+  std::string fullName;
+
+  debugPort->printf("addSystemFile(): Adding (bare) system file: [%s]\n", fName.c_str());
+  // Ensure fileName starts with '/'
+  if (!fName.empty() && fName[0] != '/')
+  {
+    fName.insert(0, 1, '/');
+  }
+
+  // Use systemPath if it's set
+  if (!systemPath.empty()) 
+  {
+    fullName = systemPath;
+    
+    // Remove trailing '/' from systemPath if present
+    if (!fullName.empty() && fullName.back() == '/')
+    {
+      fullName.pop_back();
+    }
+    
+    fullName += fName;
+  }  
+  else 
+  {
+    fullName = fName;
+  }
+
+  // Ensure fname starts with '/'
+  if (!fullName.empty() && fullName[0] != '/')
+  {
+    fullName.insert(0, 1, '/');
+  }
+
+  debugPort->printf("addSystemFile(): Adding system file: [%s]\n", fullName.c_str());
+  systemFiles.insert(fullName);
+
+} // addSystemFile()
+
+std::string FSmanager::getSystemFilePath() const
+{
+  return systemPath;
 }
 
 bool FSmanager::isSystemFile(const std::string &filename)
 {
     std::string fname = filename;
-    if (fname[0] == '/') fname = fname.substr(1);
-    
+    debugPort->println("Listing system files:");
+  
+    for (const auto &file : systemFiles)
+    {
+      debugPort->printf("  %s\n", file.c_str());
+    }
+  
+    debugPort->printf("isSystemFile(): Checking system file: [%s]\n", fname.c_str());
+    //if (fname[0] == '/') fname = fname.substr(1);
+    /**
+    // Use systemPath if it's set
+    if (!systemPath.empty()) 
+    {
+      fname = systemPath + fname;
+      
+      // Remove trailing '/' from systemPath if present
+  //  if (!fname.empty() && fname.back() == '/')
+  //  {
+  //    fname.pop_back();
+    }
+    else
+    {    
+      fname += filename;
+    }
+    **/
+    debugPort->printf("isSystemFile(): Checking complete file: [%s] (after skip '/')\n", fname.c_str());
     // Check if the file is in the systemFiles set
     if (systemFiles.find(fname) != systemFiles.end())
     {
@@ -47,7 +121,8 @@ bool FSmanager::isSystemFile(const std::string &filename)
     
     // Default system file
     return (fname == "index.html");
-}
+
+} // isSystemFile()isSystemFile()
 
 size_t FSmanager::getTotalSpace()
 {
@@ -298,9 +373,13 @@ void FSmanager::handleFileList()
             first = false;
             
             //-debug- debugPort->printf("  FILE: %s (%d bytes)\n", name.c_str(), file.size());
-            
+            // Construct the full path by appending name to folder
+            std::string fullPath = folder;
+            if (fullPath.back() != '/') fullPath += "/";
+            fullPath += name;
+            debugPort->printf("  isSyetemFile(%s)\n", fullPath.c_str());
             // Check if it's a system file
-            bool isReadOnly = isSystemFile(name);
+            bool isReadOnly = isSystemFile(fullPath);
             
             json += "{\"name\":\"";
             json += name;
@@ -412,6 +491,10 @@ void FSmanager::handleFileList()
             
             debugPort->printf("  FILE: %s (%d bytes)\n", fullPath.c_str(), dir.fileSize());
             
+            // Construct the full path by appending name to folder
+            std::string fullPath = folder;
+            if (fullPath.back() != '/') fullPath += "/";
+            fullPath += name;
             // Check if it's a system file
             bool isReadOnly = isSystemFile(fullPath);
             

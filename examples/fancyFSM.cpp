@@ -85,31 +85,46 @@ void listAllFiles() {
 
 void handleFileRequest(String path) 
 {
-  if (LittleFS.exists(path)) 
+  // First try with systemPath if available
+  std::string sysPath = fsManager.getSystemFilePath();
+  String fullPath;
+
+  if (!sysPath.empty() && sysPath.back() == '/') {
+    sysPath.pop_back();
+  }
+  Serial.printf("handleFileRequest(): sysPath[%s], path[%s]\n", sysPath.c_str(), path.c_str());
+  
+  if (sysPath.empty()) 
+        fullPath = path;
+  else  fullPath = (sysPath + path.c_str()).c_str();
+  Serial.printf("handleFileRequest(): fullPath[%s]\n", fullPath.c_str());
+  
+  if (LittleFS.exists(fullPath)) 
   {
-    File file = LittleFS.open(path, "r");
+    File file = LittleFS.open(fullPath, "r");
 
     // Determine the correct MIME type based on file extension
     String contentType = "text/plain"; // Default
-    if (path.endsWith(".html"))       contentType = "text/html";
-    else if (path.endsWith(".css"))   contentType = "text/css";
-    else if (path.endsWith(".js"))    contentType = "application/javascript";
-    else if (path.endsWith(".png"))   contentType = "image/png";
-    else if (path.endsWith(".jpg") || path.endsWith(".jpeg")) contentType = "image/jpeg";
-    else if (path.endsWith(".gif"))   contentType = "image/gif";
-    else if (path.endsWith(".ico"))   contentType = "image/x-icon";
-    else if (path.endsWith(".svg"))   contentType = "image/svg+xml";
-    else if (path.endsWith(".woff"))  contentType = "font/woff";
-    else if (path.endsWith(".woff2")) contentType = "font/woff2";
-    else if (path.endsWith(".ttf"))   contentType = "font/ttf";
-    else if (path.endsWith(".eot"))   contentType = "text/plain";
-    else if (path.endsWith(".json"))  contentType = "application/json";
-    else                              contentType = "text/plain";
+    if (fullPath.endsWith(".html"))       contentType = "text/html";
+    else if (fullPath.endsWith(".css"))   contentType = "text/css";
+    else if (fullPath.endsWith(".js"))    contentType = "application/javascript";
+    else if (fullPath.endsWith(".png"))   contentType = "image/png";
+    else if (fullPath.endsWith(".jpg") || fullPath.endsWith(".jpeg")) contentType = "image/jpeg";
+    else if (fullPath.endsWith(".gif"))   contentType = "image/gif";
+    else if (fullPath.endsWith(".ico"))   contentType = "image/x-icon";
+    else if (fullPath.endsWith(".svg"))   contentType = "image/svg+xml";
+    else if (fullPath.endsWith(".woff"))  contentType = "font/woff";
+    else if (fullPath.endsWith(".woff2")) contentType = "font/woff2";
+    else if (fullPath.endsWith(".ttf"))   contentType = "font/ttf";
+    else if (fullPath.endsWith(".eot"))   contentType = "text/plain";
+    else if (fullPath.endsWith(".json"))  contentType = "application/json";
 
+    Serial.printf("handleFileRequest: [%s] contentType[%s]\n", fullPath.c_str(), contentType.c_str());
     // Send the file with the correct content type
     server.streamFile(file, contentType);
     file.close();
-  } 
+    return;
+  }
   else 
   {
     server.send(404, "text/plain", "File Not Found");
@@ -117,26 +132,37 @@ void handleFileRequest(String path)
 
 } // handleFileRequest()
 
-String getDemoHtml(const char* htmlFile)
+String getSystemHtml(const char* htmlFile)
 {
-  File file = LittleFS.open(htmlFile, "r");  // Open file in read mode
+  // First try with systemPath if available
+  std::string sysPath = fsManager.getSystemFilePath();
+  File file;
+  
+  if (!sysPath.empty()) {
+    std::string fullPath = sysPath + htmlFile;
+    file = LittleFS.open(fullPath.c_str(), "r");
+  }
+  
+  // If file not found with systemPath or systemPath is empty, try original path
+  if (!file) {
+    file = LittleFS.open(htmlFile, "r");
+  }
+  
   if (!file) 
   {
-      Serial.println("Failed to open file for reading");
-      return String();  // Return empty string if file not found
+    Serial.println("Failed to open file for reading");
+    return String();  // Return empty string if file not found
   }
 
   String fileContent;
   while (file.available()) 
   {
-      fileContent += (char)file.read();  // Read byte by byte and append to String
+    fileContent += (char)file.read();  // Read byte by byte and append to String
   }
 
   file.close();
   return fileContent;
-
-} // End of getIndexHtmlgetIndexHtml()
-
+} // End of getSystemHtml()
 
 
 void setup()
@@ -152,23 +178,52 @@ void setup()
 
     fsManager.begin(&Serial);
     fsManager.addSystemFile("/index.html");
-    fsManager.addSystemFile("/fancyFSM.html");
-    fsManager.addSystemFile("/fancyFSM.js");
     fsManager.addSystemFile("/favicon.ico");
 
-    server.on("/", HTTP_GET, []() {
-        server.send(200, "text/html", getDemoHtml("/fancyFSM/fancyFSM.html"));
-    });
-    server.on("/fancyFSM.js", HTTP_GET, []() {
-      handleFileRequest("/fancyFSM/fancyFSM.js");
-    });
-    server.on("/fancyFSM.js", HTTP_GET, []() {
-      handleFileRequest("/fancyFSM/fancyFSM.js");
-    });
-    server.on("/favicon.ico", HTTP_GET, []() {
-      handleFileRequest("/fancyFSM/favicon.ico");
-    });
+    fsManager.setSystemFilePath("/fancyFSM");
+    fsManager.addSystemFile("fancyFSM.html");
+    fsManager.addSystemFile("fancyFSM.css");
+    fsManager.addSystemFile("fancyFSM.js");
 
+    server.serveStatic("/fancyFSM.css", LittleFS, "/fancyFSM/fancyFSM.css");
+
+    server.on("/", HTTP_GET, []() {
+        server.send(200, "text/html", getSystemHtml("/fancyFSM.html"));
+    });
+    Serial.println("\n============================================================");
+    Serial.println(getSystemHtml("/fancyFSM.html"));
+    Serial.println("\n============================================================");
+
+/***
+    server.on("/fancyFSM.js", HTTP_GET, []() {
+      handleFileRequest("/fancyFSM.js");
+    });
+    Serial.println("\n============================================================");
+    Serial.println(getSystemHtml("/fancyFSM.js"));
+    Serial.println("\n============================================================");
+***/
+    server.serveStatic("/fancyFSM.js", LittleFS, "/fancyFSM/fancyFSM.js");
+
+/***
+    server.on("/fancyFSM.css", HTTP_GET, []() {
+      handleFileRequest("/fancyFSM.css");
+    });
+    Serial.println("\n============================================================");
+    Serial.println(getSystemHtml("/fancyFSM.css"));
+    Serial.println("\n============================================================");
+***/
+    server.serveStatic("/favicon.ico", LittleFS, "/favicon.ico");
+
+/***
+    server.on("/favicon.ico", HTTP_GET, []() {
+      handleFileRequest("/favicon.ico");
+    });
+***/
+    server.onNotFound([]() {
+      Serial.printf("Not Found: %s\n", server.uri().c_str());
+      server.send(404, "text/plain", "404 Not Found");
+    });
+    
     server.begin();
     Serial.println("Webserver started!");
 }
