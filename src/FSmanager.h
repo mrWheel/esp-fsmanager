@@ -26,7 +26,15 @@
 
 class FSmanager
 {
-private:
+  public:
+    FSmanager(WebServerClass &server);
+    void begin(Stream* debugOutput = &Serial);
+    void setSystemFilePath(const std::string &path);
+    std::string getSystemFilePath() const;
+    void addSystemFile(const std::string &fileName);
+    std::string getCurrentFolder();
+
+  private:
     WebServerClass *server;
     std::string currentFolder;
     std::string uploadFolder;  // Store folder path during upload
@@ -48,13 +56,6 @@ private:
     size_t getUsedSpace();
     void handleCheckSpace();
 
-public:
-    FSmanager(WebServerClass &server);
-    void begin(Stream* debugOutput = &Serial);
-    void setSystemFilePath(const std::string &path);
-    std::string getSystemFilePath() const;
-    void addSystemFile(const std::string &fileName);
-    std::string getCurrentFolder();
 };
 
 #endif // FSMANAGER_H
