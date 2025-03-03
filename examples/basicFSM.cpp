@@ -24,64 +24,6 @@ FSmanager fsManager(server);
 // Cross-platform function to list all files on LittleFS
 #include <LittleFS.h>
 
-// Recursive function to list all files and directories
-void listAllFilesRecursive(const char* dirname, uint8_t level) {
-#if defined(ESP8266)
-    Dir dir = LittleFS.openDir(dirname);
-    while (dir.next()) {
-        for (uint8_t i = 0; i < level; i++) {
-            Serial.print("  "); // Indentation for subdirectories
-        }
-        if (dir.isDirectory()) {
-            Serial.print("DIR : ");
-            Serial.println(dir.fileName());
-            String subDir = String(dirname) + dir.fileName() + "/";
-            listAllFilesRecursive(subDir.c_str(), level + 1);
-        } else {
-            Serial.print("FILE: ");
-            Serial.print(dir.fileName());
-            Serial.print(" - SIZE: ");
-            Serial.println(dir.fileSize());
-        }
-    }
-#elif defined(ESP32)
-    File root = LittleFS.open(dirname);
-    if (!root || !root.isDirectory()) {
-        Serial.println("Failed to open directory or not a directory");
-        return;
-    }
-
-    File file = root.openNextFile();
-    while (file) {
-        for (uint8_t i = 0; i < level; i++) {
-            Serial.print("  "); // Indentation for subdirectories
-        }
-        if (file.isDirectory()) {
-            Serial.print("DIR : ");
-            Serial.println(file.name());
-
-            // Fix: Always prepend '/' for subdirectories
-            String subDir = String(file.name());
-            if (!subDir.startsWith("/")) {
-                subDir = "/" + subDir;
-            }
-            listAllFilesRecursive(subDir.c_str(), level + 1);
-        } else {
-            Serial.print("FILE: ");
-            Serial.print(file.name());
-            Serial.print(" - SIZE: ");
-            Serial.println(file.size());
-        }
-        file = root.openNextFile();
-    }
-#endif
-}
-
-// Main function to list all files on LittleFS
-void listAllFiles() {
-    Serial.println("Listing all files on LittleFS:");
-    listAllFilesRecursive("/", 0); // Start from root with no indentation
-}
 
 void handleFileRequest(String path) 
 {
@@ -116,26 +58,38 @@ void handleFileRequest(String path)
   }
 
 } // handleFileRequest()
-
-String getDemoHtml(const char* htmlFile)
+String readSystemHtml(const char* htmlFile)
 {
-  File file = LittleFS.open(htmlFile, "r");  // Open file in read mode
+  // First try with systemPath if available
+  std::string sysPath = fsManager.getSystemFilePath();
+  File file;
+  
+  if (!sysPath.empty()) {
+    std::string fullPath = sysPath + htmlFile;
+    file = LittleFS.open(fullPath.c_str(), "r");
+  }
+  
+  // If file not found with systemPath or systemPath is empty, try original path
+  if (!file) {
+    file = LittleFS.open(htmlFile, "r");
+  }
+  
   if (!file) 
   {
-      Serial.println("Failed to open file for reading");
-      return String();  // Return empty string if file not found
+    Serial.println("Failed to open file for reading");
+    return String();  // Return empty string if file not found
   }
 
   String fileContent;
   while (file.available()) 
   {
-      fileContent += (char)file.read();  // Read byte by byte and append to String
+    fileContent += (char)file.read();  // Read byte by byte and append to String
   }
 
   file.close();
   return fileContent;
-
-} // End of getIndexHtmlgetIndexHtml()
+  
+} // End of readSystemHtml()
 
 
 
@@ -152,20 +106,19 @@ void setup()
 
     fsManager.begin(&Serial);
     fsManager.addSystemFile("/index.html");
-    fsManager.addSystemFile("/basicFSM.html");
-    fsManager.addSystemFile("/basicFSM.js");
     fsManager.addSystemFile("/favicon.ico");
 
-    server.on("/", HTTP_GET, []() {
-        server.send(200, "text/html", getDemoHtml("/basicFSM/basicFSM.html"));
-    });
-    server.on("/basicFSM.js", HTTP_GET, []() {
-      handleFileRequest("/basicFSM/basicFSM.js");
-    });
-    server.on("/favicon.ico", HTTP_GET, []() {
-      handleFileRequest("/basicFSM/favicon.ico");
-    });
+    fsManager.setSystemFilePath("/basicFSM");
+    fsManager.addSystemFile("/basicFSM.html");
+    fsManager.addSystemFile("/basicFSM.js");
 
+    server.on("/", HTTP_GET, []() {
+        server.send(200, "text/html", readSystemHtml("/basicFSM.html"));
+    });
+    server.onNotFound([]() {
+      Serial.printf("Not Found: %s\n", server.uri().c_str());
+      server.send(404, "text/plain", "404 Not Found");
+    });
     server.begin();
     Serial.println("Webserver started!");
 }

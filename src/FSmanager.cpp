@@ -77,7 +77,7 @@ void FSmanager::addSystemFile(const std::string &fileName)
   //debugPort->printf("addSystemFile(): Adding system file: [%s]\n", fullName.c_str());
   systemFiles.insert(fullName);
 
-  debugPort->printf("addSystemFile(): server.on(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), fullName.c_str());
+  debugPort->printf("addSystemFile(): server->serveStatic(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), fullName.c_str());
   server->serveStatic(fName.c_str(), LittleFS, fullName.c_str());
 
 } // addSystemFile()

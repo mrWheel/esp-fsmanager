@@ -74,7 +74,7 @@ void handleFileRequest(String path)
 
 } // handleFileRequest()
 
-String getSystemHtml(const char* htmlFile)
+String readSystemHtml(const char* htmlFile)
 {
   // First try with systemPath if available
   std::string sysPath = fsManager.getSystemFilePath();
@@ -104,7 +104,8 @@ String getSystemHtml(const char* htmlFile)
 
   file.close();
   return fileContent;
-} // End of getSystemHtml()
+  
+} // End of readSystemHtml()
 
 
 void setup()
@@ -128,7 +129,7 @@ void setup()
     fsManager.addSystemFile("fancyFSM.js");
 
     server.on("/", HTTP_GET, []() {
-        server.send(200, "text/html", getSystemHtml("/fancyFSM.html"));
+        server.send(200, "text/html", readSystemHtml("/fancyFSM.html"));
     });
     server.onNotFound([]() {
       Serial.printf("Not Found: %s\n", server.uri().c_str());

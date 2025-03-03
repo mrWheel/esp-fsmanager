@@ -118,7 +118,7 @@ function loadFileList(path = currentPath) {
       }
       
       // Start the file list with header
-      html += '<div class="FSM_file-list-header">Root</div>';
+      //-No- html += '<div class="FSM_file-list-header">Root</div>';
       html += '<div class="FSM_file-list">';
       
       if (data.files.length === 0) {
