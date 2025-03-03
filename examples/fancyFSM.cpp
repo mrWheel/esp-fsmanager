@@ -190,40 +190,13 @@ void setup()
     server.on("/", HTTP_GET, []() {
         server.send(200, "text/html", getSystemHtml("/fancyFSM.html"));
     });
-    Serial.println("\n============================================================");
-    Serial.println(getSystemHtml("/fancyFSM.html"));
-    Serial.println("\n============================================================");
-
-/***
-    server.on("/fancyFSM.js", HTTP_GET, []() {
-      handleFileRequest("/fancyFSM.js");
-    });
-    Serial.println("\n============================================================");
-    Serial.println(getSystemHtml("/fancyFSM.js"));
-    Serial.println("\n============================================================");
-***/
     server.serveStatic("/fancyFSM.js", LittleFS, "/fancyFSM/fancyFSM.js");
-
-/***
-    server.on("/fancyFSM.css", HTTP_GET, []() {
-      handleFileRequest("/fancyFSM.css");
-    });
-    Serial.println("\n============================================================");
-    Serial.println(getSystemHtml("/fancyFSM.css"));
-    Serial.println("\n============================================================");
-***/
     server.serveStatic("/favicon.ico", LittleFS, "/favicon.ico");
-
-/***
-    server.on("/favicon.ico", HTTP_GET, []() {
-      handleFileRequest("/favicon.ico");
-    });
-***/
     server.onNotFound([]() {
       Serial.printf("Not Found: %s\n", server.uri().c_str());
       server.send(404, "text/plain", "404 Not Found");
     });
-    
+
     server.begin();
     Serial.println("Webserver started!");
 }
