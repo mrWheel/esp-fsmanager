@@ -63,12 +63,16 @@
     position: relative;
 }
 
-.FSM_content-wrapper 
-{
-    background-color: #f5f5f5;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.FSM_content-wrapper {
+  background-color: #f5f5f5;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  /* Centering the content horizontally */
+  width: 85%;  /* Adjust the width as needed */
+  margin: 0 auto;  /* This centers the div horizontally */
+  display: block;  /* Ensure the div behaves as a block element */
 }
 
 #bodyContent 
@@ -112,127 +116,6 @@
 .normal-message 
 {
     color: white;
-}
-
-.FSM_dropdown 
-{
-    position: relative;
-    display: inline-block;
-    color: #444;
-    cursor: pointer;
-    padding: 5px 10px;
-    margin-right: 10px;
-}
-
-.FSM_dropdown > span 
-{
-    display: inline-block;
-    padding: 5px;
-}
-
-.FSM_dropdown:hover 
-{
-    background-color: #f0f0f0;
-    border-radius: 4px;
-}
-
-.FSM_dropdown-menu 
-{
-    display: none;
-    position: absolute;
-    top: calc(100% + 5px);
-    left: 0;
-    background-color: white;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
-    list-style: none;
-    padding: 5px 0;
-    margin: 0;
-    min-width: 150px;
-    color: #444;
-    border-radius: 4px;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.3s ease-in-out, visibility 0s linear 0.3s;
-}
-
-.FSM_dropdown::before 
-{
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: -10px;
-    width: calc(100% + 20px);
-    height: 15px;
-}
-
-.FSM_dropdown-menu::before 
-{
-    content: '';
-    position: absolute;
-    top: -15px;
-    left: -10px;
-    width: calc(100% + 20px);
-    height: 15px;
-    background: transparent;
-}
-
-.FSM_dropdown:hover .FSM_dropdown-menu,
-.FSM_dropdown-menu:hover,
-.FSM_dropdown-menu:focus-within 
-{
-    display: block;
-    opacity: 1;
-    visibility: visible;
-    transition-delay: 0.1s;
-}
-
-.FSM_dropdown-menu:not(:hover) 
-{
-    transition-delay: 0.3s;
-}
-
-.FSM_dropdown-menu li 
-{
-    position: relative;
-    padding: 0;
-    cursor: pointer;
-    font-size: 14px;
-    white-space: nowrap;
-}
-
-.FSM_dropdown-menu li > * 
-{
-    display: block;
-    width: 100%;
-    padding: 8px 15px;
-    color: #333;
-    text-decoration: none;
-    box-sizing: border-box;
-}
-
-.FSM_dropdown-menu li:hover > * 
-{
-    background-color: #f0f0f0;
-}
-
-.FSM_dropdown-menu li.disabled 
-{
-    opacity: 0.4;
-    cursor: not-allowed;
-    pointer-events: all;
-}
-
-.FSM_dropdown-menu li.disabled > * 
-{
-    color: #999;
-    background-color: #f5f5f5;
-    pointer-events: none;
-}
-
-.FSM_dropdown-menu li.disabled:hover > * 
-{
-    background-color: #f5f5f5;
 }
 
 /* styles specific to FSmanager fileList */
