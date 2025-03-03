@@ -74,8 +74,11 @@ void FSmanager::addSystemFile(const std::string &fileName)
     fullName.insert(0, 1, '/');
   }
 
-  debugPort->printf("addSystemFile(): Adding system file: [%s]\n", fullName.c_str());
+  //debugPort->printf("addSystemFile(): Adding system file: [%s]\n", fullName.c_str());
   systemFiles.insert(fullName);
+
+  debugPort->printf("addSystemFile(): server.on(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), fullName.c_str());
+  server->serveStatic(fName.c_str(), LittleFS, fullName.c_str());
 
 } // addSystemFile()
 
@@ -87,32 +90,16 @@ std::string FSmanager::getSystemFilePath() const
 bool FSmanager::isSystemFile(const std::string &filename)
 {
     std::string fname = filename;
+
+    /**** List all names in systemFiles
     debugPort->println("Listing system files:");
-  
     for (const auto &file : systemFiles)
     {
       debugPort->printf("  %s\n", file.c_str());
     }
-  
+  ****/
+
     debugPort->printf("isSystemFile(): Checking system file: [%s]\n", fname.c_str());
-    //if (fname[0] == '/') fname = fname.substr(1);
-    /**
-    // Use systemPath if it's set
-    if (!systemPath.empty()) 
-    {
-      fname = systemPath + fname;
-      
-      // Remove trailing '/' from systemPath if present
-  //  if (!fname.empty() && fname.back() == '/')
-  //  {
-  //    fname.pop_back();
-    }
-    else
-    {    
-      fname += filename;
-    }
-    **/
-    debugPort->printf("isSystemFile(): Checking complete file: [%s] (after skip '/')\n", fname.c_str());
     // Check if the file is in the systemFiles set
     if (systemFiles.find(fname) != systemFiles.end())
     {
@@ -135,7 +122,7 @@ size_t FSmanager::getTotalSpace()
 
 size_t FSmanager::getUsedSpace()
 {
-  debugPort->println("Calculating used space...");
+  //-debug- debugPort->println("Calculating used space...");
 #ifdef ESP32
   size_t usedBytes = 0;
   
@@ -459,7 +446,7 @@ void FSmanager::handleFileList()
       std::string fullPath = folder;
       if (fullPath.back() != '/') fullPath += "/";
       fullPath += name;
-      debugPort->printf("  isSyetemFile(%s)\n", fullPath.c_str());
+      //debugPort->printf("  isSystemFile(%s)\n", fullPath.c_str());
       // Check if it's a system file
       bool isReadOnly = isSystemFile(fullPath);
       
