@@ -31,7 +31,7 @@ class FSmanager
     void begin(Stream* debugOutput = &Serial);
     void setSystemFilePath(const std::string &path);
     std::string getSystemFilePath() const;
-    void addSystemFile(const std::string &fileName);
+    void addSystemFile(const std::string &fileName, bool setServe = true);
     std::string getCurrentFolder();
 
   private:
