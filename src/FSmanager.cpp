@@ -30,20 +30,29 @@ std::string FSmanager::formatSize(size_t bytes)
 
 void FSmanager::setSystemFilePath(const std::string &path)
 {
-  systemPath = path;
-  if (!systemPath.empty() && systemPath.back() != '/') 
-  {
-    systemPath += '/';
+  std::string tmpPath = path;
+  // Ensure it starts with '/' but does not end with '/'
+  if (!tmpPath.empty() && tmpPath.front() != '/') {
+    tmpPath = "/" + tmpPath;  // Add '/' at the beginning if not already present
   }
-}
+
+  if (tmpPath != "/" && tmpPath.back() == '/') {
+    tmpPath.pop_back();  // Remove trailing '/' if it's not the root '/'
+  }
+
+  systemPath = tmpPath;
+
+  debugPort->printf("FSmanager::setSystemFilePath(): systemPath set to: [%s]\n", systemPath.c_str());
+
+} // setSystemFilePath()
 
 
-void FSmanager::addSystemFile(const std::string &fileName)
+void FSmanager::addSystemFile(const std::string &fileName, bool setServe)
 {
   std::string fName = fileName;
   std::string fullName;
 
-  debugPort->printf("addSystemFile(): Adding (bare) system file: [%s]\n", fName.c_str());
+  debugPort->printf("FSmanager::FSmanager::addSystemFile(): Adding (bare) system file: [%s]\n", fName.c_str());
   // Ensure fileName starts with '/'
   if (!fName.empty() && fName[0] != '/')
   {
@@ -74,11 +83,14 @@ void FSmanager::addSystemFile(const std::string &fileName)
     fullName.insert(0, 1, '/');
   }
 
-  //debugPort->printf("addSystemFile(): Adding system file: [%s]\n", fullName.c_str());
+  //debugPort->printf("FSmanager::addSystemFile(): Adding system file: [%s]\n", fullName.c_str());
   systemFiles.insert(fullName);
 
-  debugPort->printf("addSystemFile(): server->serveStatic(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), fullName.c_str());
-  server->serveStatic(fName.c_str(), LittleFS, fullName.c_str());
+  if (setServe)
+  {
+    debugPort->printf("FSmanager::addSystemFile(): server->serveStatic(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), fullName.c_str());
+    server->serveStatic(fName.c_str(), LittleFS, fullName.c_str());
+  }
 
 } // addSystemFile()
 
@@ -95,11 +107,11 @@ bool FSmanager::isSystemFile(const std::string &filename)
     debugPort->println("Listing system files:");
     for (const auto &file : systemFiles)
     {
-      debugPort->printf("  %s\n", file.c_str());
+      debugPort->printf("FSmanager::  %s\n", file.c_str());
     }
   ****/
 
-    debugPort->printf("isSystemFile(): Checking system file: [%s]\n", fname.c_str());
+    debugPort->printf("FSmanager::isSystemFile(): Checking system file: [%s]\n", fname.c_str());
     // Check if the file is in the systemFiles set
     if (systemFiles.find(fname) != systemFiles.end())
     {
@@ -128,7 +140,7 @@ size_t FSmanager::getUsedSpace()
   
   // Recursive function to calculate size of all files in a directory
   std::function<void(const std::string&)> calculateDirSize = [&](const std::string& dirPath) {
-    //-debug- debugPort->printf("currentFolder [%s]\n", dirPath.c_str());
+    //-debug- debugPort->printf("FSmanager::currentFolder [%s]\n", dirPath.c_str());
     File dir = LittleFS.open(dirPath.c_str(), "r");
     if (dir && dir.isDirectory()) 
     {
@@ -162,7 +174,7 @@ size_t FSmanager::getUsedSpace()
         {
           // Add file size to total
           usedBytes += file.size();
-          //-debug- debugPort->printf("File: %s, Size: %d -> totalUsed[%d]\n", file.name(), file.size(), usedBytes);
+          //-debug- debugPort->printf("FSmanager::File: %s, Size: %d -> totalUsed[%d]\n", file.name(), file.size(), usedBytes);
         }
         file = dir.openNextFile();
       }
@@ -185,6 +197,7 @@ void FSmanager::begin(Stream* debugOutput)
 {
   debugPort = debugOutput;
   lastUploadSuccess = true;  // Initialize to true
+  // Convert to std::string for manipulation
   
   // Register handlers for file operations
   server->on("/fsm/filelist", HTTP_GET, [this]() { this->handleFileList(); });
@@ -206,6 +219,11 @@ void FSmanager::begin(Stream* debugOutput)
     this->lastUploadSuccess = true;
     this->handleUpload(); 
   });
+
+  server->onNotFound([this]() { 
+    debugPort->printf("FSmanager::Not Found: %s\n", server->uri().c_str());
+    server->send(404, "text/plain", "404 Not Found"); 
+});
   
   server->on("/fsm/createFolder", HTTP_POST, [this]() { this->handleCreateFolder(); });
   server->on("/fsm/deleteFolder", HTTP_POST, [this]() { this->handleDeleteFolder(); });
@@ -216,7 +234,7 @@ void FSmanager::begin(Stream* debugOutput)
 
 void FSmanager::handleFileList()
 {
-  //-debug- debugPort->printf("currentFolder [%s]\n", currentFolder.c_str());
+  //-debug- debugPort->printf("FSmanager::currentFolder [%s]\n", currentFolder.c_str());
   std::string json = "{\"currentFolder\":\"";
   json += currentFolder;
   json += "\",\"files\":[";
@@ -235,7 +253,7 @@ void FSmanager::handleFileList()
     if (folderArg[folderArg.length()-1] != '/') folderArg += "/";
     folder = folderArg;
     currentFolder = folder;  // Update current folder
-    //-debug- debugPort->printf("Listing folder: %s\n", folder.c_str());
+    //-debug- debugPort->printf("FSmanager::Listing folder: %s\n", folder.c_str());
   }
   
 #ifdef ESP32
@@ -331,7 +349,7 @@ void FSmanager::handleFileList()
       dirFileCount[name] = fileCount;
       dirHasFiles[name] = (fileCount > 0);
       
-      //-debug- debugPort->printf("  DIR: %s (contains %d files)\n", name.c_str(), fileCount);
+      //-debug- debugPort->printf("FSmanager::  DIR: %s (contains %d files)\n", name.c_str(), fileCount);
     }
     file = root.openNextFile();
   }
@@ -356,7 +374,7 @@ void FSmanager::handleFileList()
       dirFileCount[fullPath] = fileCount;
       dirHasFiles[fullPath] = (fileCount > 0);
       
-      //-debug- debugPort->printf("  DIR: %s (contains %d files)\n", fullPath.c_str(), fileCount);
+      //-debug- debugPort->printf("FSmanager::  DIR: %s (contains %d files)\n", fullPath.c_str(), fileCount);
     }
   }
 #endif
@@ -376,7 +394,7 @@ void FSmanager::handleFileList()
       if (!first) json += ",";
       first = false;
       
-      //-debug- debugPort->printf("  DIR: %s\n", name.c_str());
+      //-debug- debugPort->printf("FSmanager::  DIR: %s\n", name.c_str());
       
       // Check if directory is empty or contains system files
       bool isEmpty = !dirHasFiles[name];
@@ -409,7 +427,7 @@ void FSmanager::handleFileList()
       fullPath += name;
       if (fullPath[fullPath.length()-1] != '/') fullPath += "/";
       
-      //-debug- debugPort->printf("  DIR: %s\n", fullPath.c_str());
+      //-debug- debugPort->printf("FSmanager::  DIR: %s\n", fullPath.c_str());
       
       // Check if directory is empty
       bool isEmpty = !dirHasFiles[fullPath];
@@ -441,12 +459,12 @@ void FSmanager::handleFileList()
       if (!first) json += ",";
       first = false;
       
-      //-debug- debugPort->printf("  FILE: %s (%d bytes)\n", name.c_str(), file.size());
+      //-debug- debugPort->printf("FSmanager::  FILE: %s (%d bytes)\n", name.c_str(), file.size());
       // Construct the full path by appending name to folder
       std::string fullPath = folder;
       if (fullPath.back() != '/') fullPath += "/";
       fullPath += name;
-      //debugPort->printf("  isSystemFile(%s)\n", fullPath.c_str());
+      //debugPort->printf("FSmanager::  isSystemFile(%s)\n", fullPath.c_str());
       // Check if it's a system file
       bool isReadOnly = isSystemFile(fullPath);
       
@@ -476,8 +494,8 @@ void FSmanager::handleFileList()
       if (fullPath.back() != '/') fullPath += "/";
       fullPath += name;
       
-      debugPort->printf("  FILE: %s (%d bytes)\n", fullPath.c_str(), dir.fileSize());
-      debugPort->printf("  isSyetemFile(%s)\n", fullPath.c_str());
+      debugPort->printf("FSmanager::  FILE: %s (%d bytes)\n", fullPath.c_str(), dir.fileSize());
+      debugPort->printf("FSmanager::  isSyestemFile(%s)\n", fullPath.c_str());
       
       // Check if it's a system file
       bool isReadOnly = isSystemFile(fullPath);
@@ -524,12 +542,12 @@ void FSmanager::handleDelete()
   
   if (LittleFS.remove(filename.c_str()))
   {
-    debugPort->printf("Deleted file: %s\n", filename.c_str());
+    debugPort->printf("FSmanager::Deleted file: %s\n", filename.c_str());
     server->send(200, "text/plain", "File deleted successfully");
   }
   else
   {
-    debugPort->printf("Failed to delete file: %s\n", filename.c_str());
+    debugPort->printf("FSmanager::Failed to delete file: %s\n", filename.c_str());
     server->send(500, "text/plain", "Failed to delete file");
   }
 }
@@ -543,7 +561,7 @@ void FSmanager::handleDownload()
   }
   
   std::string filename = std::string(server->arg("file").c_str());
-  debugPort->printf("Download request for file: %s\n", filename.c_str());
+  debugPort->printf("FSmanager::Download request for file: %s\n", filename.c_str());
   
   File file = LittleFS.open(filename.c_str(), "r");
   if (!file)
@@ -593,7 +611,7 @@ void FSmanager::handleCheckSpace()
   size_t usedSpace = getUsedSpace();
   size_t availableSpace = totalSpace - usedSpace;
   
-  debugPort->printf("Check space request: size=%zu, available=%zu\n", requestedSize, availableSpace);
+  debugPort->printf("FSmanager::Check space request: size=%zu, available=%zu\n", requestedSize, availableSpace);
   
   if (requestedSize > availableSpace)
   {
@@ -622,7 +640,7 @@ void FSmanager::handleUpload()
     
     // Create the full path
     std::string filepath = uploadFolder + filename;
-    debugPort->printf("Upload started: %s\n", filepath.c_str());
+    debugPort->printf("FSmanager::Upload started: %s\n", filepath.c_str());
     
     // Check if there's enough space
     size_t totalSpace = getTotalSpace();
@@ -651,7 +669,7 @@ void FSmanager::handleUpload()
     if (uploadFile)
     {
       uploadFile.close();
-      debugPort->printf("Upload complete: %d bytes\n", upload.totalSize);
+      debugPort->printf("FSmanager::Upload complete: %d bytes\n", upload.totalSize);
     }
   }
 }
@@ -670,7 +688,7 @@ void FSmanager::handleCreateFolder()
   if (folderName[0] != '/') folderName = "/" + folderName;
   if (folderName[folderName.length()-1] != '/') folderName += "/";
   
-  debugPort->printf("Creating folder request: %s\n", folderName.c_str());
+  debugPort->printf("FSmanager::Creating folder request: %s\n", folderName.c_str());
   
   // Check if the folder path has more than one level
   int slashCount = 0;
@@ -681,7 +699,7 @@ void FSmanager::handleCreateFolder()
   // We expect exactly 2 slashes for a top-level folder (/folder1/)
   // or 3 slashes for a one-level subfolder (/folder1/subfolder/)
   if (slashCount > 3) {
-    debugPort->printf("Error: Only one level of subfolders is allowed. Slash count: %d\n", slashCount);
+    debugPort->printf("FSmanager::Error: Only one level of subfolders is allowed. Slash count: %d\n", slashCount);
     server->send(400, "text/plain", "Only one level of subfolders is allowed");
     return;
   }
@@ -693,12 +711,12 @@ void FSmanager::handleCreateFolder()
     size_t secondSlashPos = folderName.find('/', 1);
     if (secondSlashPos != std::string::npos) {
       std::string parentFolder = folderName.substr(0, secondSlashPos + 1);
-      debugPort->printf("Checking parent directory: %s\n", parentFolder.c_str());
+      debugPort->printf("FSmanager::Checking parent directory: %s\n", parentFolder.c_str());
       
       // Check if parent folder exists
       File parentDir = LittleFS.open(parentFolder.c_str(), "r");
       if (!parentDir || !parentDir.isDirectory()) {
-        debugPort->printf("Creating parent directory: %s\n", parentFolder.c_str());
+        debugPort->printf("FSmanager::Creating parent directory: %s\n", parentFolder.c_str());
         if (!LittleFS.mkdir(parentFolder.c_str())) {
           debugPort->println("Failed to create parent directory");
           server->send(500, "text/plain", "Failed to create parent directory");
@@ -711,7 +729,7 @@ void FSmanager::handleCreateFolder()
   }
   
   // Create the final directory
-  debugPort->printf("Creating directory: %s\n", folderName.c_str());
+  debugPort->printf("FSmanager::Creating directory: %s\n", folderName.c_str());
   
   // Remove trailing slash for mkdir
   std::string folderPath = folderName;
@@ -741,16 +759,16 @@ void FSmanager::handleCreateFolder()
     size_t secondSlashPos = folderName.find('/', 1);
     if (secondSlashPos != std::string::npos) {
       std::string parentFolder = folderName.substr(0, secondSlashPos + 1);
-      debugPort->printf("ESP8266: Checking parent directory: %s\n", parentFolder.c_str());
+      debugPort->printf("FSmanager::ESP8266: Checking parent directory: %s\n", parentFolder.c_str());
       
       // Try to open the parent directory to see if it exists
       File parentDir = LittleFS.open(parentFolder.c_str(), "r");
       if (!parentDir) {
-        debugPort->printf("ESP8266: Parent directory doesn't exist, creating: %s\n", parentFolder.c_str());
+        debugPort->printf("FSmanager::ESP8266: Parent directory doesn't exist, creating: %s\n", parentFolder.c_str());
         
         // Create parent directory using dummy file technique
         std::string dummyFile = parentFolder + "dummy.tmp";
-        debugPort->printf("ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
+        debugPort->printf("FSmanager::ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
         
         File file = LittleFS.open(dummyFile.c_str(), "w");
         if (!file) {
@@ -781,7 +799,7 @@ void FSmanager::handleCreateFolder()
   }
   
   // Check if the folder already exists
-  debugPort->printf("ESP8266: Checking if folder exists: %s\n", folderName.c_str());
+  debugPort->printf("FSmanager::ESP8266: Checking if folder exists: %s\n", folderName.c_str());
   File checkDir = LittleFS.open(folderName.c_str(), "r");
   if (checkDir) {
     checkDir.close();
@@ -791,11 +809,11 @@ void FSmanager::handleCreateFolder()
   }
   
   // Create the final directory
-  debugPort->printf("ESP8266: Creating directory: %s\n", folderName.c_str());
+  debugPort->printf("FSmanager::ESP8266: Creating directory: %s\n", folderName.c_str());
   
   // Create a dummy file in the folder
   std::string dummyFile = folderName + "dummy.tmp";
-  debugPort->printf("ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
+  debugPort->printf("FSmanager::ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
   
   File file = LittleFS.open(dummyFile.c_str(), "w");
   if (!file) {
@@ -837,7 +855,7 @@ void FSmanager::handleDeleteFolder()
   if (folderName[0] != '/') folderName = "/" + folderName;
   if (folderName[folderName.length()-1] != '/') folderName += "/";
   
-  debugPort->printf("Deleting folder: %s\n", folderName.c_str());
+  debugPort->printf("FSmanager::Deleting folder: %s\n", folderName.c_str());
   
 #ifdef ESP32
   if (LittleFS.rmdir(folderName.c_str()))
