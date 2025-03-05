@@ -7,7 +7,7 @@ let folderUpIcon = '&#8617; ..';
 //--------------------------------------------------
 
 
-console.log('/FSmanager.js loaded successfully');
+console.log('FSmanager.js loaded successfully');
 
 let currentFolder = '/';
 

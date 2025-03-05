@@ -41,10 +41,19 @@
     </style>
 </head>
 <body>
-    <div class="message">
-        <h1>Disconnected</h1>
-        <p>Another client has taken over the connection.</p>
-        <a href="/" class="button">Reconnect</a>
-    </div>
+  <div class="message">
+      <h1>Disconnected</h1>
+      <p>Another client has taken over the connection.</p>
+      <button class="button" onclick="reconnect()">Reconnect</button>
+  </div>
+
+  <script>
+      function reconnect() {
+          // Clear session storage (or localStorage if needed)
+          //sessionStorage.clear();
+          // Force navigation to the absolute root URL
+          window.location.replace(window.location.protocol + "//" + window.location.host + "/displayManager.html");
+          }
+  </script>
 </body>
 </html>

@@ -212,7 +212,7 @@ void handleFSmanagerMenu(uint8_t param)
 void setupMainPage()
 {
     const char *mainPage = R"HTML(
-    <div style="font-size: 48px; text-align: center; font-weight: bold;">basicDM page</div>
+    <div style="font-size: 48px; text-align: center; font-weight: bold;">extended Demo Page</div>
     )HTML";
     
     dm.addPage("Main", mainPage);
@@ -372,7 +372,7 @@ void setup()
     networking = new Networking();
     
     //-- Parameters: hostname, resetWiFi pin, serial object, baud rate
-    debug = networking->begin("extendedDemo", 0, Serial, 115200);
+    debug = networking->begin("networkDM", 0, Serial, 115200);
     
     debug->println("\nWiFi connected");
     debug->print("IP address: ");
