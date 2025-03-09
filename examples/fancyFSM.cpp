@@ -114,7 +114,7 @@ void setup()
     delay(4000);
 
     // Initialize WiFiManager
-    wifiManager.autoConnect("FSManager-AP");
+    wifiManager.autoConnect("fancyFSM-AP");
 
     LittleFS.begin();
     //--listAllFiles();
@@ -124,9 +124,9 @@ void setup()
     fsManager.addSystemFile("/favicon.ico");
 
     fsManager.setSystemFilePath("/fancyFSM");
-    fsManager.addSystemFile("fancyFSM.html");
-    fsManager.addSystemFile("fancyFSM.css");
-    fsManager.addSystemFile("fancyFSM.js");
+    fsManager.addSystemFile(fsManager.getSystemFilePath() + "/fancyFSM.html");
+    fsManager.addSystemFile(fsManager.getSystemFilePath() + "/fancyFSM.js");
+    fsManager.addSystemFile(fsManager.getSystemFilePath() + "/fancyFSM.css");
 
     server.on("/", HTTP_GET, []() {
         server.send(200, "text/html", readSystemHtml("/fancyFSM.html"));

@@ -1,18 +1,24 @@
 
 //--------------------------------------------------
 //-- html unicodes to use in the code
-let folderIcon = '&#128193;';
-let fileIcon = '&#128196;';
-let folderUpIcon = '&#8617;';
+let folderIcon = '&#128193; &nbsp;';
+let fileIcon = '&#128196; &nbsp;';
+let folderUpIcon = '&#8617; ..';
 //--------------------------------------------------
 
-const statusDiv = document.getElementById('status');
-let currentPath = '/';
+
+console.log('fancyFSM.js loaded successfully');
+
+let currentFolder = '/';
+
+const statusDiv = document.getElementById('fsm_status');
+var contentElement = document.querySelector('.FSM_content-wrapper');
+if (contentElement) contentElement.style.display = 'none';
 
 // Function to update the upload heading with the current path
 function updateUploadHeading() {
-  const uploadHeading = document.getElementById('uploadHeading');
-  uploadHeading.textContent = `Upload File to ${currentPath}`;
+  const uploadHeading = document.getElementById('fsm_uploadHeading');
+  uploadHeading.textContent = `Upload File to ${currentFolder}`;
 }
 
 function showStatus(message, isError = false) {
@@ -50,7 +56,7 @@ function handleUpload(event) {
       const formData = new FormData(form);
       
       // Add current folder to formData
-      formData.append('folder', currentPath);
+      formData.append('folder', currentFolder);
       
       return fetch(form.action, {
         method: 'POST',
@@ -73,137 +79,123 @@ function handleUpload(event) {
     .catch(error => showStatus('Upload failed: ' + error, true));
 }
 
-function loadFileList(path = currentPath) {
+function loadFileList(path = currentFolder) {
+  path = path.replace('//', '/');
+  console.log('Loading file list for folder:', path);
+
+  var contentElement = document.querySelector('.FSM_content-wrapper');
+  if (contentElement) contentElement.style.display = 'none';
+  var headerElement = document.querySelector('.FSM_file-list-header');
+  var fileListElement = document.getElementById('fsm_fileList');
+  var spaceInfoElement = document.getElementById('fsm_spaceInfo');
+  var folderInputDiv = document.getElementById('fsm_folderInput');
+  var createBtn = document.getElementById('createFolderBtn');
+  var folderInput = document.getElementById('foldername');
+
+  if (headerElement) headerElement.style.display = 'none';
+  if (fileListElement) fileListElement.style.display = 'none';
+  if (spaceInfoElement) spaceInfoElement.style.display = 'none';
+
+  if (path === '/') {
+    // In root directory - show folder input
+    folderInputDiv.style.display = 'block';
+    if (createBtn)   createBtn.disabled = false;
+    if (folderInput) 
+    {
+      folderInput.disabled = false;
+      folderInput.placeholder = 'Enter folder name';
+    }
+  } else {
+    // Not in root directory - hide folder input
+    folderInputDiv.style.display = 'none';
+    if (createBtn)   createBtn.disabled = true;
+    if (folderInput) folderInput.disabled = true;
+  }
+
   fetch('/fsm/filelist?folder=' + encodeURIComponent(path))
     .then(response => {
       if (!response.ok) {
         if (response.status === 400) {
           showStatus('Invalid or inaccessible folder', true);
-          // Return to parent folder only if the folder doesn't exist
-          // Don't return to parent if it's just empty
-          if (currentPath !== '/' && !response.headers.get('X-Empty-Folder')) {
-            navigateToFolder(getParentFolder(currentPath));
+          if (currentFolder !== '/' && !response.headers.get('X-Empty-Folder')) {
+            navigateToFolder(getParentFolder(currentFolder));
           }
           throw new Error('Invalid folder');
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return response.text().then(text => {
-        try {
-          if (!text) {
-            throw new Error('Empty response');
-          }
-          return JSON.parse(text);
-        } catch (e) {
-          throw new Error(`Invalid JSON: ${text}`);
-        }
-      });
+      return response.json();
     })
     .then(data => {
       if (!data || !Array.isArray(data.files)) {
         throw new Error('Invalid response format');
       }
-      const filesDiv = document.getElementById('files');
-      const spaceInfo = document.getElementById('spaceInfo');
-      
-      // Create the wrapper div for the file list
-      let html = '<div id="fsm_fileList" style="display: block;">';
-      
-      // Navigation and current path
-      if (currentPath !== '/') {
-        html += `<div style="margin-bottom: 10px;">
-          <button class="button" style="width: auto;" onclick="navigateToFolder('${getParentFolder(currentPath)}')">${folderUpIcon} ..</button>
-          <span style="margin-left: 10px;">Current path: ${currentPath}</span>
-        </div>`;
-      }
-      
-      // Start the file list with header
-      //-No- html += '<div class="FSM_file-list-header">Root</div>';
-      html += '<div class="FSM_file-list">';
-      
-      if (data.files.length === 0) {
-        html += '<div class="FSM_file-item" style="text-align: center;">Empty folder</div>';
-      } else {
-        // First show folders
-        data.files.forEach(file => {
-          if (file.isDir) {
-            const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + file.name;
-            const isReadOnly = file.access === "r";
-            html += `<div class="FSM_file-item">
-              <span onclick="navigateToFolder('${fullPath}')" style="cursor: pointer;">
-                <span class="FSM_folder-icon">${folderIcon}</span> ${file.name}
-              </span>
-              <span class="FSM_size">${file.size} files</span>
-              <span>
-                <button class="button download" onclick="navigateToFolder('${fullPath}')">Download</button>
-              </span>
-              <span>
-                ${isReadOnly ? 
-                  `<button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button>` : 
-                  `<button class="button FSM_delete" onclick="deleteFolder('${file.name}')">Delete</button>`
-                }
-              </span>
-            </div>`;
-          }
-        });
+      fileListElement.innerHTML = '';
 
-        // Then show files
-        data.files.forEach(file => {
-          if (!file.isDir) {
-            const isReadOnly = file.access === "r";
-            html += `<div class="FSM_file-item">
-              <span>
-                <span>${fileIcon}</span> ${file.name}
-              </span>
-              <span class="FSM_size">${formatBytes(file.size)}</span>
-              <span>
-                <button class="button download" onclick="downloadFile('${file.name}')">Download</button>
-              </span>
-              <span>
-                ${isReadOnly ? 
-                  `<button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button>` : 
-                  `<button class="button FSM_delete" onclick="deleteFile('${file.name}')">Delete</button>`
-                }
-              </span>
-            </div>`;
-          }
-        });
+      var displayFolderName = path;
+      if (displayFolderName !== '/' && displayFolderName.endsWith('/')) {
+        displayFolderName = displayFolderName.slice(0, -1);
       }
-      
-      html += '</div>'; // Close FSM_file-list
-      
-      // Space info
-      const usedSpace = formatBytes(data.usedSpace || 0);
-      const totalSpace = formatBytes(data.totalSpace || 0);
-      const freeSpace = formatBytes(data.totalSpace - data.usedSpace || 0);
-      html += `<div class="FSM_space-info">FileSystem uses ${usedSpace} of ${totalSpace} (${freeSpace} available)</div>`;
-      
-      html += '</div>'; // Close fsm_fileList wrapper
-      
-      filesDiv.innerHTML = html;
-      spaceInfo.innerHTML = ''; // Clear the space info since we're now including it in the file list
-            
-      // Show the FSM_content-wrapper div
-      const contentWrapper = document.querySelector('.FSM_content-wrapper');
-      if (contentWrapper) {
-        contentWrapper.style.display = 'block';
+      headerElement.textContent = displayFolderName;
+      headerElement.style.display = 'block';
+
+      var folders = data.files.filter(file => file.isDir);
+      var files = data.files.filter(file => !file.isDir);
+      folders.sort((a, b) => a.name.localeCompare(b.name));
+      files.sort((a, b) => a.name.localeCompare(b.name));
+
+      if (path !== '/') {
+        var backItem = document.createElement('li');
+        backItem.classList.add('FSM_file-item');
+        backItem.innerHTML = `<span style="cursor: pointer" onclick="navigateToFolder('${getParentFolder(path)}')">${folderUpIcon}</span>`;
+        fileListElement.appendChild(backItem);
       }
+
+      folders.forEach(folder => {
+        var folderItem = document.createElement('li');
+        folderItem.classList.add('FSM_file-item');
+        folderItem.innerHTML = `<span style="cursor: pointer" onclick="navigateToFolder('${path + '/' + folder.name}')">${folderIcon} ${folder.name}</span>`;
+        folderItem.innerHTML += `<span> </span>`;
+        if (folder.access === "r") 
+              folderItem.innerHTML += `<span><button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button></span>`; 
+        else  folderItem.innerHTML += `<span><button class="button FSM_delete" onclick="deleteFolder('${folder.name}')">Delete</button></span>`;
+        fileListElement.appendChild(folderItem);
+      });
+      console.log("processed all folders ..");
+
+      files.forEach(file => {
+        console.log('File:', file);
+        var fileItem = document.createElement('li');
+        fileItem.classList.add('FSM_file-item');
+        fileItem.innerHTML = `<span>${fileIcon} ${file.name}</span><span><button onclick="downloadFile('${file.name}')">Download</button></span>`;
+        if (file.access === "r") 
+              fileItem.innerHTML += `<span><button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button></span>`; 
+        else  fileItem.innerHTML += `<span><button class="button FSM_delete" onclick="deleteFile('${file.name}')">Delete</button></span>`;
+        fileListElement.appendChild(fileItem);
+      });
+      console.log("processed all files ..");
+
+      spaceInfoElement.innerHTML = `Storage: ${formatBytes(data.usedSpace)} used of ${formatBytes(data.totalSpace)} (${formatBytes(data.totalSpace - data.usedSpace)} available)`;
+      spaceInfoElement.style.display = 'block';
+      fileListElement.style.display = 'block';
+      if (contentElement) contentElement.style.display = 'block';
 
     })
     .catch(error => showStatus('Failed to load file list: ' + error, true));
-}
+
+} // loadFileList()
 
 
-function formatBytes(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  else return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+function downloadFile(filename) {
+  const fullPath = currentFolder + (currentFolder.endsWith('/') ? '' : '/') + filename;
+  window.location.href = '/fsm/download?file=' + encodeURIComponent(fullPath);
 }
+
 
 function deleteFile(filename) {
   if (!confirm('Are you sure you want to delete ' + filename + '?')) return;
   
-  const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename;
+  const fullPath = currentFolder + (currentFolder.endsWith('/') ? '' : '/') + filename;
   fetch('/fsm/delete', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -217,13 +209,9 @@ function deleteFile(filename) {
   .catch(error => showStatus('Delete failed: ' + error, true));
 }
 
-function downloadFile(filename) {
-  const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + filename;
-  window.location.href = '/fsm/download?file=' + encodeURIComponent(fullPath);
-}
 
 function createFolder() {
-  let foldername = document.getElementById('foldername').value;
+  let foldername = document.getElementById('fsm_foldername').value;
   if (!foldername) {
     showStatus('Please enter a folder name', true);
     return;
@@ -231,7 +219,7 @@ function createFolder() {
 
   // Clean up folder name
   foldername = foldername.replace(/[^a-zA-Z0-9-_]/g, '_'); // Replace invalid chars
-  const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + foldername;
+  const fullPath = currentFolder + (currentFolder.endsWith('/') ? '' : '/') + foldername;
   fetch('/fsm/createFolder', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -241,7 +229,7 @@ function createFolder() {
   .then(result => {
     showStatus(result);
     if (result.includes('created')) {
-      document.getElementById('foldername').value = '';
+      document.getElementById('fsm_foldername').value = '';
       loadFileList();
     }
   })
@@ -251,7 +239,7 @@ function createFolder() {
 function deleteFolder(foldername) {
   if (!confirm('Are you sure you want to delete folder ' + foldername + '?')) return;
 
-  const fullPath = currentPath + (currentPath.endsWith('/') ? '' : '/') + foldername;
+  const fullPath = currentFolder + (currentFolder.endsWith('/') ? '' : '/') + foldername;
   fetch('/fsm/deleteFolder', {
     method: 'POST',
     headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -261,7 +249,7 @@ function deleteFolder(foldername) {
   .then(result => {
     showStatus(result);
     if (result.includes('deleted')) {
-      document.getElementById('foldername').value = '';
+      document.getElementById('fsm_foldername').value = '';
       loadFileList();
     }
   })
@@ -284,15 +272,18 @@ function getParentFolder(path) {
 }
 
 function navigateToFolder(path) {
-  currentPath = path;
+  // Normalize path by replacing multiple slashes at the beginning with a single slash
+  path = path.replace('//', '/');
+
+  currentFolder = path;
   loadFileList(path);
   // Update the upload heading with the new path
   updateUploadHeading();
   
   // Show/hide folder input based on current path
-  const folderInputDiv = document.getElementById('folderInput');
-  const createBtn = document.getElementById('createFolderBtn');
-  const folderInput = document.getElementById('foldername');
+  const folderInputDiv = document.getElementById('fsm_folderInput');
+  const createBtn = document.getElementById('fsm_createFolderBtn');
+  const folderInput = document.getElementById('fsm_foldername');
   
   if (path === '/') {
     // In root directory - show folder input
@@ -302,15 +293,29 @@ function navigateToFolder(path) {
     folderInput.placeholder = 'Enter folder name';
   } else {
     // Not in root directory - hide folder input
-    folderInputDiv.style.display = 'none';
-    createBtn.disabled = true;
-    folderInput.disabled = true;
+    if (folderInput) 
+    {
+      folderInputDiv.style.display = 'none';
+      createBtn.disabled = true;
+      folderInput.disabled = true;
+    }
   }
 }
+
+function formatBytes(size) {
+  if (size >= 1048576) {
+      return (size / 1048576).toFixed(2) + ' MB';
+  } else if (size >= 1024) {
+      return (size / 1024).toFixed(2) + ' KB';
+  } else {
+      return size + ' B';
+  }
+} // formatBytes()
+
 
 // Initial load
 loadFileList('/');
 // Update the upload heading initially
 updateUploadHeading();
 // Set initial folder input visibility
-document.getElementById('folderInput').style.display = currentPath === '/' ? 'block' : 'none';
+document.getElementById('fsm_folderInput').style.display = currentFolder === '/' ? 'block' : 'none';

@@ -58,6 +58,7 @@ void handleFileRequest(String path)
   }
 
 } // handleFileRequest()
+
 String readSystemHtml(const char* htmlFile)
 {
   // First try with systemPath if available
@@ -109,8 +110,8 @@ void setup()
     fsManager.addSystemFile("/favicon.ico");
 
     fsManager.setSystemFilePath("/basicFSM");
-    fsManager.addSystemFile("/basicFSM.html");
-    fsManager.addSystemFile("/basicFSM.js");
+    fsManager.addSystemFile(fsManager.getSystemFilePath() + "/basicFSM.html");
+    fsManager.addSystemFile(fsManager.getSystemFilePath() + "/basicFSM.js");
 
     server.on("/", HTTP_GET, []() {
         server.send(200, "text/html", readSystemHtml("/basicFSM.html"));
