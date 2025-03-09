@@ -25,7 +25,7 @@
   /* Centering the content horizontally */
   width: 800px%;  /* Adjust the width as needed */
   margin: 0 auto;  /* This centers the div horizontally */
-  display: block;  /* Ensure the div behaves as a block element */
+  display: none;  /* Ensure the div behaves as a block element */
 }
 
 .FSM_h1

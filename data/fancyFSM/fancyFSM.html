@@ -19,7 +19,7 @@
     <div style="margin-bottom: 20px; style="display: block">
       <div>
         <h2 id="fsm_uploadHeading">Upload File</h2>
-        <form id="fsm_uploadForm" action="/fsm/upload" method="post" enctype="multipart/form-data" onsubmit="uploadSelectedFile(event)">
+        <form id="fsm_uploadForm" action="/fsm/upload" method="post" enctype="multipart/form-data" onsubmit="handleUpload(event)">
           <input type="file" name="file" required>
           <button type="submit" class="button upload">Upload File</button>
         </form>

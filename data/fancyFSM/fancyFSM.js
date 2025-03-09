@@ -12,6 +12,8 @@ console.log('fancyFSM.js loaded successfully');
 let currentFolder = '/';
 
 const statusDiv = document.getElementById('fsm_status');
+var contentElement = document.querySelector('.FSM_content-wrapper');
+if (contentElement) contentElement.style.display = 'none';
 
 // Function to update the upload heading with the current path
 function updateUploadHeading() {
@@ -81,6 +83,8 @@ function loadFileList(path = currentFolder) {
   path = path.replace('//', '/');
   console.log('Loading file list for folder:', path);
 
+  var contentElement = document.querySelector('.FSM_content-wrapper');
+  if (contentElement) contentElement.style.display = 'none';
   var headerElement = document.querySelector('.FSM_file-list-header');
   var fileListElement = document.getElementById('fsm_fileList');
   var spaceInfoElement = document.getElementById('fsm_spaceInfo');
@@ -151,6 +155,10 @@ function loadFileList(path = currentFolder) {
         var folderItem = document.createElement('li');
         folderItem.classList.add('FSM_file-item');
         folderItem.innerHTML = `<span style="cursor: pointer" onclick="navigateToFolder('${path + '/' + folder.name}')">${folderIcon} ${folder.name}</span>`;
+        folderItem.innerHTML += `<span> </span>`;
+        if (folder.access === "r") 
+              folderItem.innerHTML += `<span><button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button></span>`; 
+        else  folderItem.innerHTML += `<span><button class="button FSM_delete" onclick="deleteFolder('${folder.name}')">Delete</button></span>`;
         fileListElement.appendChild(folderItem);
       });
       console.log("processed all folders ..");
@@ -159,12 +167,10 @@ function loadFileList(path = currentFolder) {
         console.log('File:', file);
         var fileItem = document.createElement('li');
         fileItem.classList.add('FSM_file-item');
-        fileItem.innerHTML = `<span>${fileIcon} ${file.name}</span><button onclick="downloadFile('${file.name}')">Download</button>`;
-        fileItem.innerHTML += `<span>`;
+        fileItem.innerHTML = `<span>${fileIcon} ${file.name}</span><span><button onclick="downloadFile('${file.name}')">Download</button></span>`;
         if (file.access === "r") 
-              fileItem.innerHTML += `<button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button>`; 
-        else  fileItem.innerHTML += `<button class="button FSM_delete" onclick="deleteFile('${file.name}')">Delete</button>`;
-        fileItem.innerHTML += `</span>`;
+              fileItem.innerHTML += `<span><button class="button" disabled style="background-color: #cccccc; cursor: not-allowed;">Locked</button></span>`; 
+        else  fileItem.innerHTML += `<span><button class="button FSM_delete" onclick="deleteFile('${file.name}')">Delete</button></span>`;
         fileListElement.appendChild(fileItem);
       });
       console.log("processed all files ..");
@@ -172,6 +178,8 @@ function loadFileList(path = currentFolder) {
       spaceInfoElement.innerHTML = `Storage: ${formatBytes(data.usedSpace)} used of ${formatBytes(data.totalSpace)} (${formatBytes(data.totalSpace - data.usedSpace)} available)`;
       spaceInfoElement.style.display = 'block';
       fileListElement.style.display = 'block';
+      if (contentElement) contentElement.style.display = 'block';
+
     })
     .catch(error => showStatus('Failed to load file list: ' + error, true));
 
