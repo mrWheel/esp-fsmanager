@@ -11,7 +11,7 @@
 
 #define CLOCK_UPDATE_INTERVAL  1000
 
-Networking* networking = nullptr;
+Networking* network = nullptr;
 Stream* debug = nullptr;
 
 DisplayManager dm(80);
@@ -21,7 +21,7 @@ FSmanager fsManager(dm.server);
 
 uint32_t lastCounterUpdate = 0;
 
-const char *hostName = "basicDM";
+const char *hostName = "extendedDemo";
 uint32_t  counter = 0;
 bool counterRunning = false;
 
@@ -29,12 +29,8 @@ bool counterRunning = false;
 
 void pageIsLoadedCallback()
 {
-  dm.setMessage("Page is loaded!", 5);
   debug->println("pageIsLoadedCallback(): Page is loaded callback executed");
-  dm.includeJsScript("/FSmanager.js");
-  debug->println("pageIsLoadedCallback(): Included '/FSmanager.js'");
-  fsManager.addSystemFile("FSmanager.js", false);
-
+  debug->println("pageIsLoadedCallback(): Nothing to do!");
 } 
 
     
@@ -163,6 +159,11 @@ void processInputCallback(const std::map<std::string, std::string>& inputValues)
     debug->printf("  %s = %s\n", pair.first.c_str(), pair.second.c_str());
   }
 }
+void processUploadFileCallback()
+{
+  debug->println("Process processUploadFileCallback(): proceed action received");
+}
+
 
 void doJsFunction()
 {
@@ -178,27 +179,8 @@ void handleFSmanagerMenu(uint8_t param)
               dm.setMessage("FS Manager : List LittleFS Clicked!", 5);
               dm.disableID("FSmanagerPage", "fsm_addFolder");
               dm.disableID("FSmanagerPage", "fsm_fileUpload");
-//            dm.enableID("FSmanagerPage",  "fsm_spaceInfo");
               dm.enableID("FSmanagerPage",  "fsm_fileList");
               dm.callJsFunction("loadFileList");
-            }
-            break;
-    case 2: {
-              dm.setMessage("FS Manager : Upload File Clicked!", 5);
-//            dm.disableID("FSmanagerPage", "fsm_spaceInfo");
-              dm.disableID("FSmanagerPage", "fsm_fileList");
-              dm.disableID("FSmanagerPage", "fsm_addFolder");
-              dm.enableID("FSmanagerPage",  "fsm_fileUpload");
-              dm.callJsFunction("uploadFile");
-            }
-            break;
-    case 3: {
-              dm.setMessage("FS Manager : Create Folder Clicked!", 5);
-              dm.disableID("FSmanagerPage", "fsm_addFolder");
-              dm.disableID("FSmanagerPage", "fsm_fileList");
-              dm.disableID("FSmanagerPage", "fsm_fileUpload");
-              dm.enableID("FSmanagerPage",  "fsm_addFolder");
-              dm.callJsFunction("createFolder");
             }
             break;
     case 4: {
@@ -212,11 +194,12 @@ void handleFSmanagerMenu(uint8_t param)
 void setupMainPage()
 {
     const char *mainPage = R"HTML(
-    <div style="font-size: 48px; text-align: center; font-weight: bold;">extended Demo Page</div>
+    <div style="font-size: 48px; text-align: center; font-weight: bold;">Extended Demo Page</div>
     )HTML";
     
     dm.addPage("Main", mainPage);
     dm.setPageTitle("Main", "Display Manager Example");
+
     //-- Add Main menu
     dm.addMenu("Main", "Main Menu");
     dm.addMenuItem("Main", "Main Menu", "StopWatch", mainCallback1);
@@ -260,11 +243,6 @@ void setupMainPage()
     )HTML";
     dm.addMenuItemPopup("Main", "TestPopUp", "InputFields", popup2Input, processInputCallback);
 
-    const char *popupUpload = R"HTML(
-        <div style="font-size: 48px; text-align: center; font-weight: bold;">sometxt</div>
-        <input type="file" id="filePopup1" onchange="uploadFile(this.files[0])">
-      )HTML";
-    dm.addMenuItemPopup("Main", "TestPopUp", "UploadFile", popupUpload, nullptr);
 }
 
 void setupCounterPage()
@@ -324,28 +302,44 @@ void setupInputPage()
 void setupFSmanagerPage()
 {
   const char *fsManagerPage = R"HTML(
-<div id="fsm_fileList" style="display: block;">
-</div>
-<div id="fsm_fileUpload" style="display: none;">
-  <input type="file" id="fsm_fileInput" onchange="uploadFile(this.files[0])">
-</div>
-<div id="fsm_addFolder" class="dM_space-info" style="display: none;">
-  <input type="text" placeholder="Enter new folder name" onchange="addFolder(this.files[0])">
-</div>
-<div id="fsm_spaceInfo" class="dM_space-info" style="display: block;">
-  <!-- Space information will be displayed here -->
-</div>    )HTML";
+    <div id="fsm_fileList" style="display: block;">
+    </div>
+    <div id="fsm_spaceInfo" class="FSM_space-info" style="display: block;">
+      <!-- Space information will be displayed here -->
+    </div>    
+  )HTML";
   
-    dm.addPage("FSmanagerPage", fsManagerPage);
-    dm.setPageTitle("FSmanagerPage", "FileSystem Manager");
-    //-- Add InputPage menu
-    dm.addMenu("FSmanagerPage", "FS Manager");
-    dm.addMenuItem("FSmanagerPage", "FS Manager", "List LittleFS", handleFSmanagerMenu, 1);
-    dm.addMenuItem("FSmanagerPage", "FS Manager", "Upload File",   handleFSmanagerMenu, 2);
-    dm.addMenuItem("FSmanagerPage", "FS Manager", "Create Folder", handleFSmanagerMenu, 3);
-    dm.addMenuItem("FSmanagerPage", "FS Manager", "Exit",          handleFSmanagerMenu, 4);
+  dm.addPage("FSmanagerPage", fsManagerPage);
 
-    dm.includeJsScript("/FSmanager.js");
+  const char *popupUploadFile = R"HTML(
+    <div id="popUpUploadFile">Upload File</div>
+    <div id="fsm_fileUpload">
+      <input type="file" id="fsm_fileInput">
+      <div id="selectedFileName" style="margin-top: 5px; font-style: italic;"></div>
+    </div>
+    <div style="margin-top: 10px;">
+      <button type="button" onClick="closePopup('popup_FS_Manager_Upload_File')">Cancel</button>
+      <button type="button" id="uploadButton" onClick="uploadSelectedFile()" disabled>Upload File</button>
+    </div>
+  )HTML";
+  
+  const char *popupNewFolder = R"HTML(
+    <div id="popupCreateFolder">Create Folder</div>
+    <label for="folderNameInput">Folder Name:</label>
+    <input type="text" id="folderNameInput" placeholder="Enter folder name">
+    <br>
+    <button type="button" onClick="closePopup('popup_FS_Manager_New_Folder')">Cancel</button>
+    <button type="button" onClick="createFolderFromInput()">Create Folder</button>
+  )HTML";
+
+  dm.setPageTitle("FSmanagerPage", "FileSystem Manager");
+  //-- Add InputPage menu
+  dm.addMenu("FSmanagerPage", "FS Manager");
+  dm.addMenuItem("FSmanagerPage", "FS Manager", "List LittleFS", handleFSmanagerMenu, 1);
+  dm.addMenuItemPopup("FSmanagerPage", "FS Manager", "Upload File", popupUploadFile);
+  dm.addMenuItemPopup("FSmanagerPage", "FS Manager", "Create Folder", popupNewFolder);
+  dm.addMenuItem("FSmanagerPage", "FS Manager", "Exit",          handleFSmanagerMenu, 4);
+
 }
 
 
@@ -369,10 +363,10 @@ void setup()
     delay(3000);
 
     //-- Connect to WiFi
-    networking = new Networking();
+    network = new Networking();
     
     //-- Parameters: hostname, resetWiFi pin, serial object, baud rate
-    debug = networking->begin("networkDM", 0, Serial, 115200);
+    debug = network->begin("networkDM", 0, Serial, 115200);
     
     debug->println("\nWiFi connected");
     debug->print("IP address: ");
@@ -382,14 +376,19 @@ void setup()
     debug->printf("DisplayManager files are located [%s]\n", dm.getSystemFilePath().c_str());
     fsManager.begin();
     fsManager.addSystemFile("favicon.ico");
-    fsManager.setSystemFilePath("/extendedDemo");
-    debug->printf("FSmanager files are located [%s]\n", fsManager.getSystemFilePath().c_str());
     fsManager.addSystemFile("displayManager.html", false);
     fsManager.addSystemFile("displayManager.css", false);
-    fsManager.addSystemFile("disconnected.html", false);
     fsManager.addSystemFile("displayManager.js", false);
+    fsManager.addSystemFile("disconnected.html", false);
    
     dm.pageIsLoaded(pageIsLoadedCallback);
+
+    fsManager.setSystemFilePath("/extendedDemo");
+    debug->printf("FSmanager files are located [%s]\n", fsManager.getSystemFilePath().c_str());
+    dm.includeJsFile("/FSmanager.js");
+    fsManager.addSystemFile("FSmanager.js", false);
+    dm.includeCssFile("/FSmanager.css");
+    fsManager.addSystemFile("FSmanager.css", false);
 
     setupMainPage();
     setupCounterPage();
@@ -403,6 +402,7 @@ void setup()
 
 void loop()
 {
+  network->loop();
   dm.server.handleClient();
   dm.ws.loop();
   updateCounter();
