@@ -195,6 +195,11 @@ function handleEvent(eventType, data) {
             break;
         case 'includeJsFile':
             console.log('Handling includeJsFile:', data);
+            // Ensure the script path starts with '/' and only includes the file name
+            let jsFileName = data.split('/').pop();  // Extract the last part of the path
+            if (jsFileName) {
+                data = '/' + jsFileName;  // Prepend '/' to the file name
+            }
             // Create a promise for this script load
             scriptLoadPromises[data] = new Promise((resolve) => {
                 const script = document.createElement('script');
@@ -209,6 +214,11 @@ function handleEvent(eventType, data) {
             break;
             case 'includeCssFile':
               console.log('Handling includeCssFile:', data);
+              // Ensure the script path starts with '/' and only includes the file name
+              let cssFileName = data.split('/').pop();  // Extract the last part of the path
+              if (cssFileName) {
+                  data = '/' + cssFileName;  // Prepend '/' to the file name
+              }
               // Check if the CSS is already included to avoid duplicates
               if (!document.querySelector(`link[href="${data}"]`)) {
                   const link = document.createElement('link');

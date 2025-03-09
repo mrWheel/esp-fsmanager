@@ -47,52 +47,52 @@ void FSmanager::setSystemFilePath(const std::string &path)
 } // setSystemFilePath()
 
 
-void FSmanager::addSystemFile(const std::string &fileName, bool setServe)
+void FSmanager::addSystemFile(const std::string &fullPath, bool setServe)
 {
-  std::string fName = fileName;
+  std::string sanitizedPath = fullPath;
   std::string fullName;
 
-  debugPort->printf("FSmanager::FSmanager::addSystemFile(): Adding (bare) system file: [%s]\n", fName.c_str());
-  // Ensure fileName starts with '/'
+  debugPort->printf("FSmanager::addSystemFile(): Adding system file: [%s]\n", sanitizedPath.c_str());
+
+  // Ensure sanitizedPath starts with '/'
+  if (!sanitizedPath.empty() && sanitizedPath[0] != '/')
+  {
+    sanitizedPath.insert(0, 1, '/');
+  }
+
+  // Replace double slashes '//' with single '/'
+  for (size_t pos = 0; (pos = sanitizedPath.find("//", pos)) != std::string::npos; )
+  {
+    sanitizedPath.erase(pos, 1);
+  }
+
+  // Ensure sanitizedPath never ends in '/'
+  if (sanitizedPath.length() > 1 && sanitizedPath.back() == '/')
+  {
+    sanitizedPath.pop_back();
+  }
+
+  std::string fName = sanitizedPath.substr(sanitizedPath.find_last_of('/') + 1); // Extract filename
+  // Ensure fName starts with '/'
   if (!fName.empty() && fName[0] != '/')
   {
     fName.insert(0, 1, '/');
   }
 
-  // Use systemPath if it's set
-  if (!systemPath.empty()) 
-  {
-    fullName = systemPath;
-    
-    // Remove trailing '/' from systemPath if present
-    if (!fullName.empty() && fullName.back() == '/')
-    {
-      fullName.pop_back();
-    }
-    
-    fullName += fName;
-  }  
-  else 
-  {
-    fullName = fName;
-  }
-
-  // Ensure fname starts with '/'
-  if (!fullName.empty() && fullName[0] != '/')
-  {
-    fullName.insert(0, 1, '/');
-  }
-
-  //debugPort->printf("FSmanager::addSystemFile(): Adding system file: [%s]\n", fullName.c_str());
-  systemFiles.insert(fullName);
-
+  debugPort->printf("FSmanager::addSystemFile: systemFiles.insert(%s)\n", sanitizedPath.c_str());
+  systemFiles.insert(sanitizedPath);
   if (setServe)
   {
-    debugPort->printf("FSmanager::addSystemFile(): server->serveStatic(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), fullName.c_str());
-    server->serveStatic(fName.c_str(), LittleFS, fullName.c_str());
+    debugPort->printf("FSmanager::addSystemFile(): server->serveStatic(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), sanitizedPath.c_str());
+    server->serveStatic(fName.c_str(), LittleFS, sanitizedPath.c_str());
+  }
+  else
+  {
+    debugPort->printf("FSmanager::addSystemFile(): server->serveStatic NOT set for \"%s\" \"%s\"\n", fName.c_str(), sanitizedPath.c_str());
   }
 
 } // addSystemFile()
+
 
 std::string FSmanager::getSystemFilePath() const
 {
@@ -109,19 +109,20 @@ bool FSmanager::isSystemFile(const std::string &filename)
     {
       debugPort->printf("FSmanager::  %s\n", file.c_str());
     }
-  ****/
+    ****/
 
     debugPort->printf("FSmanager::isSystemFile(): Checking system file: [%s]\n", fname.c_str());
     // Check if the file is in the systemFiles set
     if (systemFiles.find(fname) != systemFiles.end())
     {
+        debugPort->printf("FSmanager::isSystemFile(): Found system file: [%s]\n", fname.c_str());
         return true;
     }
     
     // Default system file
     return (fname == "index.html");
 
-} // isSystemFile()isSystemFile()
+} // isSystemFile()
 
 size_t FSmanager::getTotalSpace()
 {

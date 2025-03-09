@@ -56,6 +56,7 @@ void handleCounterMenu(uint8_t param)
               dm.disableMenuItem("CounterPage", "StopWatch", "Reset");
               dm.disableMenuItem("CounterPage", "StopWatch", "Start");
               counterRunning = true;
+              lastCounterUpdate = millis();
               dm.setPlaceholder("CounterPage", "counterState", "Started");
             }
             break;
@@ -301,14 +302,23 @@ void setupInputPage()
 
 void setupFSmanagerPage()
 {
+  /*****/
   const char *fsManagerPage = R"HTML(
-    <div id="fsm_fileList" style="display: block;">
+    <div id="fsm_fileList" style="display: none;">
     </div>
+    <div id="fsm_spaceInfo" class="FSM_space-info" style="display: none;">
+      <!-- Space information will be displayed here -->
+    </div>
+  )HTML";
+  /***
+ const char *fsManagerPage = R"HTML(
+  <div id="fsm_fileList" style="display: none;">
     <div id="fsm_spaceInfo" class="FSM_space-info" style="display: block;">
       <!-- Space information will be displayed here -->
-    </div>    
-  )HTML";
-  
+    </div>
+  </div>
+)HTML";
+***/
   dm.addPage("FSmanagerPage", fsManagerPage);
 
   const char *popupUploadFile = R"HTML(
@@ -351,7 +361,7 @@ void updateCounter()
         {
             counter++;
             dm.setPlaceholder("CounterPage", "counter", counter);
-            lastCounterUpdate = millis();
+            lastCounterUpdate += CLOCK_UPDATE_INTERVAL;
         }
     }
 }
@@ -375,20 +385,20 @@ void setup()
     dm.begin("/extendedDemo", debug);
     debug->printf("DisplayManager files are located [%s]\n", dm.getSystemFilePath().c_str());
     fsManager.begin();
-    fsManager.addSystemFile("favicon.ico");
-    fsManager.addSystemFile("displayManager.html", false);
-    fsManager.addSystemFile("displayManager.css", false);
-    fsManager.addSystemFile("displayManager.js", false);
-    fsManager.addSystemFile("disconnected.html", false);
+    fsManager.addSystemFile("/favicon.ico");
+    fsManager.addSystemFile(dm.getSystemFilePath() + "/displayManager.html", false);
+    fsManager.addSystemFile(dm.getSystemFilePath() + "/displayManager.css", false);
+    fsManager.addSystemFile(dm.getSystemFilePath() + "/displayManager.js", false);
+    fsManager.addSystemFile(dm.getSystemFilePath() + "/disconnected.html", false);
    
     dm.pageIsLoaded(pageIsLoadedCallback);
 
-    fsManager.setSystemFilePath("/extendedDemo");
+    fsManager.setSystemFilePath("/FSmanager");
     debug->printf("FSmanager files are located [%s]\n", fsManager.getSystemFilePath().c_str());
-    dm.includeJsFile("/FSmanager.js");
-    fsManager.addSystemFile("FSmanager.js", false);
-    dm.includeCssFile("/FSmanager.css");
-    fsManager.addSystemFile("FSmanager.css", false);
+    dm.includeJsFile(fsManager.getSystemFilePath()+ "/FSmanager.js");
+    fsManager.addSystemFile((fsManager.getSystemFilePath()+"/FSmanager.js").c_str(), false);
+    dm.includeCssFile(fsManager.getSystemFilePath()+ "/FSmanager.css");
+    fsManager.addSystemFile((fsManager.getSystemFilePath()+"/FSmanager.css").c_str(), false);
 
     setupMainPage();
     setupCounterPage();

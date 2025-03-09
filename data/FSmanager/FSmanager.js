@@ -179,9 +179,24 @@ function uploadFile(file) {
 
 // Add a flag to track if we're in a reset state
 var isResettingToRoot = false;
-
-function loadFileList() {
+function loadFileList() 
+{
   console.log('Loading file list for folder:', currentFolder);
+  //-- Hide the elements at the start of the function
+  var headerElement = document.querySelector('.FSM_file-list-header');
+  var fileListElement = document.getElementById('fsm_fileList');
+  var spaceInfoElement = document.getElementById('fsm_spaceInfo');
+  
+  if (headerElement) {
+      headerElement.style.display = 'none';
+  }
+  if (fileListElement) {
+    fileListElement.style.display = 'none';
+}
+if (spaceInfoElement) {
+      spaceInfoElement.style.display = 'none';
+  }
+
   var xhr = new XMLHttpRequest();
   xhr.open('GET', '/fsm/filelist?folder=' + currentFolder, true);
   
@@ -221,6 +236,8 @@ function loadFileList() {
               displayFolderName = displayFolderName.slice(0, -1);
           }
           headerElement.textContent = displayFolderName;
+          //-- Initially hide the header when it is created
+          headerElement.style.display = 'none';
           
           // Create arrays for folders and files
           // Remove duplicates by using a Map with folder name as key
@@ -303,6 +320,8 @@ function loadFileList() {
               fileListElement.appendChild(fileItem);
           }
 
+          headerElement.style.display = 'block';
+
           // Update space information
           var spaceInfo = document.getElementById('fsm_spaceInfo');
           if (spaceInfo) {
@@ -312,6 +331,8 @@ function loadFileList() {
           } else {
               console.error('fsm_spaceInfo element not found in DOM');
           }
+          fileListElement.style.display = 'block';
+      
       } else {
           console.error('Failed to load file list, status:', xhr.status);
           
@@ -342,6 +363,21 @@ function loadFileList() {
 
 function navigateUp() {
     console.log('Navigating up from:', currentFolder);
+    //-- Hide the file list before navigating up
+    var headerElement = document.querySelector('.FSM_file-list-header');
+    var fileListElement = document.getElementById('fsm_fileList');
+    var spaceInfoElement = document.getElementById('fsm_spaceInfo');
+    
+    if (headerElement) {
+        headerElement.style.display = 'none';
+    }
+    if (fileListElement) {
+      fileListElement.style.display = 'none';
+  }
+  if (spaceInfoElement) {
+        spaceInfoElement.style.display = 'none';
+    }
+    
     var oldFolder = currentFolder;
     currentFolder = currentFolder.split('/').slice(0, -2).join('/') + '/';
     if (currentFolder === '') currentFolder = '/';
@@ -351,7 +387,9 @@ function navigateUp() {
     isResettingToRoot = true;
     
     loadFileList();
-}
+
+} // navigateUp()
+
 
 function openFolder(folderName) {
     console.log('Opening folder:', folderName);
