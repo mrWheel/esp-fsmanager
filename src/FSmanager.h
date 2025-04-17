@@ -55,7 +55,11 @@ class FSmanager
     size_t getTotalSpace();
     size_t getUsedSpace();
     void handleCheckSpace();
-
+#ifdef FSMANAGER_DEBUG
+  bool doDebug = true;
+#else
+  bool doDebug = false;
+#endif
 };
 
 #endif // FSMANAGER_H

@@ -52,7 +52,7 @@ void FSmanager::addSystemFile(const std::string &fullPath, bool setServe)
   std::string sanitizedPath = fullPath;
   std::string fullName;
 
-  debugPort->printf("FSmanager::addSystemFile(): Adding system file: [%s]\n", sanitizedPath.c_str());
+  if (doDebug) debugPort->printf("FSmanager::addSystemFile(): Adding system file: [%s]\n", sanitizedPath.c_str());
 
   // Ensure sanitizedPath starts with '/'
   if (!sanitizedPath.empty() && sanitizedPath[0] != '/')
@@ -79,11 +79,11 @@ void FSmanager::addSystemFile(const std::string &fullPath, bool setServe)
     fName.insert(0, 1, '/');
   }
 
-  debugPort->printf("FSmanager::addSystemFile: systemFiles.insert(%s)\n", sanitizedPath.c_str());
+  if (doDebug) debugPort->printf("FSmanager::addSystemFile: systemFiles.insert(%s)\n", sanitizedPath.c_str());
   systemFiles.insert(sanitizedPath);
   if (setServe)
   {
-    debugPort->printf("FSmanager::addSystemFile(): server->serveStatic(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), sanitizedPath.c_str());
+    if (doDebug) debugPort->printf("FSmanager::addSystemFile(): server->serveStatic(\"%s\", LittleFS, \"%s\");\n", fName.c_str(), sanitizedPath.c_str());
     server->serveStatic(fName.c_str(), LittleFS, sanitizedPath.c_str());
   }
   else
@@ -111,7 +111,7 @@ bool FSmanager::isSystemFile(const std::string &filename)
     }
     ****/
 
-    debugPort->printf("FSmanager::isSystemFile(): Checking system file: [%s]\n", fname.c_str());
+    if (doDebug) debugPort->printf("FSmanager::isSystemFile(): Checking system file: [%s]\n", fname.c_str());
     // Check if the file is in the systemFiles set
     if (systemFiles.find(fname) != systemFiles.end())
     {
@@ -543,7 +543,7 @@ void FSmanager::handleDelete()
   
   if (LittleFS.remove(filename.c_str()))
   {
-    debugPort->printf("FSmanager::Deleted file: %s\n", filename.c_str());
+    if (doDebug) debugPort->printf("FSmanager::Deleted file: %s\n", filename.c_str());
     server->send(200, "text/plain", "File deleted successfully");
   }
   else
@@ -680,7 +680,7 @@ void FSmanager::handleCreateFolder()
 {
   if (!server->hasArg("name")) 
   {
-    debugPort->println("Error: Missing folder name parameter");
+    if (doDebug) debugPort->println("Error: Missing folder name parameter");
     server->send(400, "text/plain", "Missing folder name parameter");
     return;
   }
@@ -689,7 +689,7 @@ void FSmanager::handleCreateFolder()
   if (folderName[0] != '/') folderName = "/" + folderName;
   if (folderName[folderName.length()-1] != '/') folderName += "/";
   
-  debugPort->printf("FSmanager::Creating folder request: %s\n", folderName.c_str());
+  if (doDebug) debugPort->printf("FSmanager::Creating folder request: %s\n", folderName.c_str());
   
   // Check if the folder path has more than one level
   int slashCount = 0;
@@ -712,25 +712,25 @@ void FSmanager::handleCreateFolder()
     size_t secondSlashPos = folderName.find('/', 1);
     if (secondSlashPos != std::string::npos) {
       std::string parentFolder = folderName.substr(0, secondSlashPos + 1);
-      debugPort->printf("FSmanager::Checking parent directory: %s\n", parentFolder.c_str());
+      if (doDebug) debugPort->printf("FSmanager::Checking parent directory: %s\n", parentFolder.c_str());
       
       // Check if parent folder exists
       File parentDir = LittleFS.open(parentFolder.c_str(), "r");
       if (!parentDir || !parentDir.isDirectory()) {
-        debugPort->printf("FSmanager::Creating parent directory: %s\n", parentFolder.c_str());
+        if (doDebug) debugPort->printf("FSmanager::Creating parent directory: %s\n", parentFolder.c_str());
         if (!LittleFS.mkdir(parentFolder.c_str())) {
           debugPort->println("Failed to create parent directory");
           server->send(500, "text/plain", "Failed to create parent directory");
           return;
         }
-        debugPort->println("Parent directory created successfully");
+        if (doDebug) debugPort->println("Parent directory created successfully");
       }
       if (parentDir) parentDir.close();
     }
   }
   
   // Create the final directory
-  debugPort->printf("FSmanager::Creating directory: %s\n", folderName.c_str());
+  if (doDebug) debugPort->printf("FSmanager::Creating directory: %s\n", folderName.c_str());
   
   // Remove trailing slash for mkdir
   std::string folderPath = folderName;
@@ -740,7 +740,7 @@ void FSmanager::handleCreateFolder()
   
   if (LittleFS.mkdir(folderPath.c_str()))
   {
-    debugPort->println("Folder created successfully");
+    if (doDebug) debugPort->println("Folder created successfully");
     server->send(200, "text/plain", "Folder created successfully");
   }
   else
@@ -752,7 +752,7 @@ void FSmanager::handleCreateFolder()
   // ESP8266 doesn't have a direct mkdir function
   // We need to create the directory structure manually
   
-  debugPort->println("ESP8266: Using alternative folder creation method");
+  if (doDebug) debugPort->println("ESP8266: Using alternative folder creation method");
   
   // For one-level subfolder, create parent directory first if needed
   if (slashCount == 3) {
@@ -760,16 +760,16 @@ void FSmanager::handleCreateFolder()
     size_t secondSlashPos = folderName.find('/', 1);
     if (secondSlashPos != std::string::npos) {
       std::string parentFolder = folderName.substr(0, secondSlashPos + 1);
-      debugPort->printf("FSmanager::ESP8266: Checking parent directory: %s\n", parentFolder.c_str());
+      if (doDebug) debugPort->printf("FSmanager::ESP8266: Checking parent directory: %s\n", parentFolder.c_str());
       
       // Try to open the parent directory to see if it exists
       File parentDir = LittleFS.open(parentFolder.c_str(), "r");
       if (!parentDir) {
-        debugPort->printf("FSmanager::ESP8266: Parent directory doesn't exist, creating: %s\n", parentFolder.c_str());
+        if (doDebug) debugPort->printf("FSmanager::ESP8266: Parent directory doesn't exist, creating: %s\n", parentFolder.c_str());
         
         // Create parent directory using dummy file technique
         std::string dummyFile = parentFolder + "dummy.tmp";
-        debugPort->printf("FSmanager::ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
+        if (doDebug) debugPort->printf("FSmanager::ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
         
         File file = LittleFS.open(dummyFile.c_str(), "w");
         if (!file) {
@@ -791,30 +791,30 @@ void FSmanager::handleCreateFolder()
         }
         checkFile.close();
         
-        debugPort->println("ESP8266: Parent directory created successfully");
+        if (doDebug) debugPort->println("ESP8266: Parent directory created successfully");
       } else {
         parentDir.close();
-        debugPort->println("ESP8266: Parent directory already exists");
+        if (doDebug) debugPort->println("ESP8266: Parent directory already exists");
       }
     }
   }
   
   // Check if the folder already exists
-  debugPort->printf("FSmanager::ESP8266: Checking if folder exists: %s\n", folderName.c_str());
+  if (doDebug) debugPort->printf("FSmanager::ESP8266: Checking if folder exists: %s\n", folderName.c_str());
   File checkDir = LittleFS.open(folderName.c_str(), "r");
   if (checkDir) {
     checkDir.close();
-    debugPort->println("ESP8266: Folder already exists");
+    if (doDebug) debugPort->println("ESP8266: Folder already exists");
     server->send(200, "text/plain", "Folder already exists");
     return;
   }
   
   // Create the final directory
-  debugPort->printf("FSmanager::ESP8266: Creating directory: %s\n", folderName.c_str());
+  if (doDebug) debugPort->printf("FSmanager::ESP8266: Creating directory: %s\n", folderName.c_str());
   
   // Create a dummy file in the folder
   std::string dummyFile = folderName + "dummy.tmp";
-  debugPort->printf("FSmanager::ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
+  if (doDebug) debugPort->printf("FSmanager::ESP8266: Creating dummy file: %s\n", dummyFile.c_str());
   
   File file = LittleFS.open(dummyFile.c_str(), "w");
   if (!file) {
@@ -838,7 +838,7 @@ void FSmanager::handleCreateFolder()
   
   // IMPORTANT: Do NOT delete the dummy file on ESP8266
   // This ensures the folder continues to exist
-  debugPort->println("ESP8266: Folder created successfully");
+  if (doDebug) debugPort->println("ESP8266: Folder created successfully");
   server->send(200, "text/plain", "Folder created successfully");
 #endif
 }
@@ -856,7 +856,7 @@ void FSmanager::handleDeleteFolder()
   if (folderName[0] != '/') folderName = "/" + folderName;
   if (folderName[folderName.length()-1] != '/') folderName += "/";
   
-  debugPort->printf("FSmanager::Deleting folder: %s\n", folderName.c_str());
+  if (doDebug) debugPort->printf("FSmanager::Deleting folder: %s\n", folderName.c_str());
   
 #ifdef ESP32
   if (LittleFS.rmdir(folderName.c_str()))
